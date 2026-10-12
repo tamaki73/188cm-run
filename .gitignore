@@ -1,0 +1,6 @@
+work/
+node_modules/
+__pycache__/
+188cm_run_game/
+playwright-report/
+test-results/

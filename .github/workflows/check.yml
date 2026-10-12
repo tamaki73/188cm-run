@@ -1,0 +1,29 @@
+name: ゲームの検証
+on:
+  push:
+    branches: [main]
+  pull_request:
+permissions:
+  contents: read
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: JavaScriptとルールの検証
+        run: |
+          node --check game-engine.js
+          node --check game.js
+          node tests/engine.test.js
+      - name: Colab成果物の一致とHTTP起動の検証
+        run: |
+          mkdir -p work
+          python3 tools/build_colab.py
+          git diff --exit-code -- 188cm_RUN.ipynb colab_cells.py
+          python3 tests/colab_test.py

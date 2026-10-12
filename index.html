@@ -1,0 +1,47 @@
+<!doctype html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="theme-color" content="#111c29">
+  <meta name="description" content="身長188cmの視点で、街の入口を走り抜ける。オリジナルのCanvasランゲーム。">
+  <title>188cm RUN | 頭上に、気をつけて。</title>
+  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' rx='14' fill='%23111c29'/%3E%3Ctext x='32' y='43' text-anchor='middle' font-family='sans-serif' font-weight='900' font-size='32' fill='%23cff56b'%3E188%3C/text%3E%3C/svg%3E">
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <main class="shell">
+    <header class="masthead"><a class="wordmark" href="#" id="home-link">188<span>cm</span> RUN<span class="logo-dot">.</span></a><div class="edition">日常を、走り抜けろ。<span>身長188cmのランゲーム</span></div></header>
+    <section id="game" class="game" tabindex="0" aria-label="188cm RUN ゲーム画面。クリックしてキーボードで操作。">
+      <canvas id="canvas" width="960" height="680" aria-label="奥から迫る入口とアイテム、走るプレイヤー"></canvas>
+      <div class="hud" id="hud">
+        <div class="stat score-stat"><span>スコア</span><strong id="score">000000</strong></div>
+        <div class="stat"><span>走行距離</span><strong><b id="distance">0</b><small> m</small></strong></div>
+        <div class="stat"><span>アイテム</span><strong><b id="items">0</b><small> 個</small></strong></div>
+        <div class="strain"><div><span>体への負荷</span><strong id="strain-value">0%</strong></div><div class="track" role="progressbar" aria-label="体への負荷" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0" id="strain-track"><i id="strain-bar"></i></div></div>
+      </div>
+      <div class="scene-meta"><span id="mode-label">街を走る、あなたの物語。</span><span>身長 <b>188</b> cm</span></div>
+      <button class="pause-button" id="pause-button" aria-label="一時停止" hidden>Ⅱ</button>
+      <section class="overlay" id="title-panel" hidden>
+        <div class="title-card"><span class="eyebrow">頭上に、気をつけて。</span><h1>188<span>cm</span><br>RUN<span class="lime">.</span></h1><p>いつもの入口。少し高い目線。<br>その一瞬の判断が、走りを変える。</p><button class="primary" id="start-button">走り出す <span>→</span></button><button class="text-button" id="tutorial-button">チュートリアルで練習する</button><div class="best">自己ベスト <strong id="best-score">0</strong></div></div>
+      </section>
+      <section class="tutorial-panel" id="tutorial-panel" hidden aria-label="チュートリアル">
+        <div class="lesson-heading"><span class="eyebrow">チュートリアル <b id="lesson-step">1 / 7</b></span><button class="text-button" id="lesson-title-button">タイトルへ</button></div>
+        <h2 id="lesson-title"></h2><p id="lesson-text"></p><div class="lesson-bottom"><span id="lesson-feedback" role="status"></span><button class="primary compact" id="next-button" disabled>次へ →</button></div>
+        <div class="skip-row"><label><input type="checkbox" id="skip-checkbox"> 次回からチュートリアルを表示しない</label><button id="skip-button" class="text-button" disabled>チュートリアルをスキップ</button></div>
+      </section>
+      <section class="overlay" id="over-panel" hidden>
+        <div class="result-card"><span class="eyebrow">おつかれさまでした</span><h2>GAME OVER<span class="lime">.</span></h2><p id="over-reason"></p><div class="result-score"><span>最終スコア</span><strong id="final-score">0</strong></div><div class="result-details"><span>走行距離 <b id="final-distance">0 m</b></span><span>アイテム <b id="final-items">0 個</b></span></div><button id="restart-button" class="primary">もう一度走る <kbd>Enter</kbd></button><button id="back-button" class="text-button">タイトルへ戻る</button></div>
+      </section>
+      <section class="overlay pause-overlay" id="pause-panel" hidden><div class="pause-card"><span class="eyebrow">ひと休み</span><h2>一時停止中</h2><p>再開すると、3秒後に走り出します。</p><button id="resume-button" class="primary">ゲームに戻る →</button></div></section>
+      <div class="countdown" id="countdown" hidden aria-live="polite">3</div>
+      <div class="focus-tip" id="focus-tip" hidden>画面をクリックして操作</div>
+    </section>
+    <footer class="controls"><div><kbd>↓</kbd><span> / </span><kbd>Shift</kbd><span> 押している間しゃがむ</span></div><div><kbd>Space</kbd><span> ジャンプ</span></div><div><kbd>E</kbd><span> アイテム取得</span></div><div><kbd>Esc</kbd><span> 一時停止</span></div><button class="text-button" id="sound-button" aria-pressed="false">音：オフ</button></footer>
+    <p class="footnote">見た目を頼りに、姿勢を選ぼう。アイテムは近づいてから手を伸ばす。<span>負荷やけがはゲーム上の演出です。</span></p>
+    <nav class="touch-controls" aria-label="タッチ操作"><button id="touch-crouch">しゃがむ（長押し）</button><button id="touch-jump">ジャンプ</button><button id="touch-grab">取る</button></nav>
+  </main>
+  <script src="game-engine.js"></script>
+  <script src="game.js"></script>
+</body>
+</html>
