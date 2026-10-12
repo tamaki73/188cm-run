@@ -12,20 +12,23 @@
   };
   let best = Number(storage.get('best', '0')) || 0;
   let lastTime = null, uiMode = '', lessonIndex = -1, soundEnabled = false, audioContext;
-  let resumeAt = 0, touchCrouch = false, lastItems = 0, ambientTime = 0;
-  const W = 960, H = 680, CX = 480, HORIZON = 344, GROUND = 628, CM = (GROUND - HORIZON) / 188;
+  let resumeAt = 0, touchCrouch = false, touchStraddle = false, lastItems = 0, ambientTime = 0;
+  const W = 960, H = 680, CX = 480, HORIZON = 344, GROUND = 628, CM = (GROUND - HORIZON) / CONFIG.PASSAGE_HEIGHT;
 
   function focusGame() { game.focus({ preventScroll: true }); $('focus-tip').hidden = true; }
-  function clearInput() { held.clear(); touchCrouch = false; model.crouching = false; }
+  function clearInput(resetPose = true) {
+    held.clear(); touchCrouch = false; touchStraddle = false;
+    if (resetPose) { model.crouching = false; model.straddling = false; }
+  }
   function activate(action) {
     clearInput(); resumeAt = 0; action(); uiMode = ''; lastItems = model.items; focusGame(); syncUI();
   }
   function pause() {
     if (!['playing', 'tutorial'].includes(model.mode)) return;
-    model.paused = true; resumeAt = 0; clearInput(); syncUI();
+    model.paused = true; resumeAt = 0; clearInput(false); syncUI();
   }
   function resume() {
-    focusGame(); clearInput(); resumeAt = performance.now() + 3000;
+    focusGame(); clearInput(false); resumeAt = performance.now() + 3000;
     $('pause-panel').hidden = true; $('countdown').hidden = false;
   }
   function tone(frequency, duration = 0.12, type = 'sine', volume = 0.07) {
@@ -67,7 +70,7 @@
   game.addEventListener('pointerdown', e => {
     if (!e.target.closest('button, input, label')) focusGame();
   });
-  const relevantKeys = new Set(['ArrowDown', 'ShiftLeft', 'ShiftRight', 'Space', 'KeyE', 'Enter', 'Escape']);
+  const relevantKeys = new Set(['ArrowDown', 'ShiftLeft', 'ShiftRight', 'KeyS', 'Space', 'KeyE', 'Enter', 'Escape']);
   window.addEventListener('keydown', e => {
     if (!game.contains(document.activeElement) || !relevantKeys.has(e.code)) return;
     if (e.target.matches('input, button') && (e.code === 'Space' || e.code === 'Enter')) return;
@@ -87,7 +90,7 @@
   window.addEventListener('blur', pause);
   document.addEventListener('visibilitychange', () => { if (document.hidden) pause(); });
   game.addEventListener('focusout', e => {
-    if (!game.contains(e.relatedTarget) && ['playing', 'tutorial'].includes(model.mode)) { clearInput(); pause(); }
+    if (!game.contains(e.relatedTarget) && ['playing', 'tutorial'].includes(model.mode)) pause();
   });
   function bindTouch(id, action, release) {
     const button = $(id);
@@ -97,6 +100,7 @@
     button.addEventListener('lostpointercapture', () => release?.());
   }
   bindTouch('touch-crouch', () => { touchCrouch = true; }, () => { touchCrouch = false; });
+  bindTouch('touch-straddle', () => { touchStraddle = true; }, () => { touchStraddle = false; });
   bindTouch('touch-jump', jump); bindTouch('touch-grab', grab);
 
   function syncUI() {
@@ -131,23 +135,24 @@
     if (model.mode === 'tutorial') {
       const t = model.tutorial;
       if (lessonIndex !== t.step) {
-        $('lesson-step').textContent = (t.step + 1) + ' / 7';
+        $('lesson-step').textContent = (t.step + 1) + ' / ' + LESSONS.length;
         $('lesson-title').textContent = LESSONS[t.step][0]; $('lesson-text').textContent = LESSONS[t.step][1]; lessonIndex = t.step;
       }
       $('next-button').disabled = !t.done;
-      $('next-button').textContent = t.step === 6 ? '走り出す →' : '次へ →';
+      $('next-button').textContent = t.step === LESSONS.length - 1 ? '走り出す →' : '次へ →';
       let progress = t.feedback;
-      if (t.step === 0) progress = ['crouch', 'jump', 'grab'].map((k, i) => (t.actions.has(k) ? '✓ ' : '○ ') + ['しゃがむ', 'ジャンプ', '手を伸ばす'][i]).join('　');
-      if (t.step === 3) progress = t.peak ? 'キーを離して、ゲージの回復を見ましょう。' : 'しゃがんで、ゲージの増加を見ましょう。';
-      if (t.step === 6) progress = 'ジャンプ ' + Math.min(3, t.jumps) + ' / 3 回';
+      if (t.step === 0) progress = ['crouch', 'straddle', 'jump', 'grab'].map((k, i) => (t.actions.has(k) ? '✓ ' : '○ ') + ['しゃがむ', 'またぐ', 'ジャンプ', '手を伸ばす'][i]).join('　');
+      if (t.step === 7) progress = t.recovered ? 'Spaceでジャンプの負荷も確認しましょう。' : t.peak ? 'キーを離して、ゲージの回復を見ましょう。' : 'しゃがんで、ゲージの増加を見ましょう。';
+      if (t.step === 8) progress = '通過・取得 ' + t.passed + ' / 5';
       $('lesson-feedback').textContent = t.done ? 'できました！次へ進みましょう。' : progress;
       $('skip-button').disabled = !$('skip-checkbox').checked;
     }
     if (model.items > lastItems) lastItems = model.items;
+    if (model.mode === 'playing') $('mode-label').textContent = model.area.name + '　・　速度 ' + (model.speed / CONFIG.INITIAL_SPEED).toFixed(1) + '倍';
   }
 
   // Perspective uses the same physical clearance as collision detection.
-  // At z=0 the runner's 188cm head aligns exactly with the opening's 188cm plane.
+  // At z=0 the runner's shoe-inclusive 190cm head aligns with the opening's 190cm plane.
   function project(z) {
     const scale = 1 / (1 + Math.max(-5, z) / 23);
     return { s: scale, y: HORIZON + (GROUND - HORIZON) * scale };
@@ -172,8 +177,9 @@
     ctx.font = `600 ${size}px "Yu Gothic", sans-serif`; ctx.textAlign = align; ctx.fillStyle = color; ctx.fillText(text, x, y);
   }
   function background() {
+    const area = model.area;
     const sky = ctx.createLinearGradient(0, 0, 0, HORIZON + 70);
-    sky.addColorStop(0, '#273e52'); sky.addColorStop(0.55, '#79979c'); sky.addColorStop(1, '#d3ceae');
+    sky.addColorStop(0, '#273e52'); sky.addColorStop(0.55, area.sky); sky.addColorStop(1, '#d3ceae');
     rect(0, 0, W, H, sky);
     const sun = ctx.createRadialGradient(730, 200, 4, 730, 200, 150);
     sun.addColorStop(0, '#fff3bb98'); sun.addColorStop(1, '#fff3bb00'); rect(540, 15, 370, 355, sun);
@@ -191,9 +197,16 @@
         if (i % 4 === 0) { rect(x + 17, y - 22, 21, 17, '#617980'); line([[x + 27, y - 22], [x + 27, y - 37]], '#637e84', 2); }
       }
     }
+    if (['station', 'bus', 'store', 'home'].includes(area.id)) {
+      rect(0, 0, W, HORIZON, area.sky);
+      poly([[0, 0], [W, 0], [580, HORIZON - 85], [380, HORIZON - 85]], '#344856');
+      for (let i = 0; i < 6; i++) { const y = 80 + i * 37; line([[100 + i * 55, y], [860 - i * 55, y]], '#cad1bb', 4 - i * .4); }
+      if (area.id === 'bus') { rect(386, 258, 188, 86, '#749798'); rect(394, 266, 172, 70, '#a0b8ad'); label('路線バス', 480, 298, 14, '#34545b'); }
+      if (area.id === 'home') { rect(363, 242, 234, 102, '#8b8167'); rect(386, 260, 188, 84, '#c3c3a2'); }
+    }
     // A continuous pavement grid, curbs and side structures move with travelled distance.
     const floor = ctx.createLinearGradient(0, HORIZON, 0, H);
-    floor.addColorStop(0, '#78918b'); floor.addColorStop(1, '#263b42');
+    floor.addColorStop(0, area.sky); floor.addColorStop(1, area.floor);
     poly([[CX - 45, HORIZON], [CX + 45, HORIZON], [W + 80, H], [-80, H]], floor);
     poly([[0, HORIZON], [CX - 45, HORIZON], [25, H], [0, H]], '#263e49');
     poly([[CX + 45, HORIZON], [W, HORIZON], [W, H], [935, H]], '#344953');
@@ -210,6 +223,7 @@
       const { s, y } = project(z);
       const x = CX + (i % 2 ? -405 : 405) * s;
       ctx.save(); ctx.translate(x, y); ctx.scale(s, s);
+      if (area.id !== 'street') { areaFixture(area.id, i); ctx.restore(); continue; }
       rect(-4, -245, 8, 245, '#2a414e'); line([[0, -245], [32, -270], [80, -270]], '#3e5562', 9);
       rect(55, -272, 31, 8, '#e0d5ac'); circle(69, -263, 14, '#f3da9320');
       rect(-115, -130, 82, 130, i % 3 ? '#52665e' : '#738277', '#758d89');
@@ -230,6 +244,35 @@
     const haze = ctx.createLinearGradient(0, HORIZON - 35, 0, HORIZON + 55);
     haze.addColorStop(0, '#c6caae00'); haze.addColorStop(.5, '#c6caae40'); haze.addColorStop(1, '#c6caae00');
     rect(0, HORIZON - 35, W, 90, haze);
+  }
+
+  function areaFixture(area, index) {
+    if (area === 'park') {
+      rect(-12, -185, 24, 185, '#7f7051'); circle(0, -213, 75, '#477b60'); circle(-44, -170, 46, '#5c8b64'); circle(48, -185, 52, '#719765');
+      rect(-85, -40, 170, 12, '#bb9b68'); rect(-69, -28, 8, 28, '#6c715c'); rect(59, -28, 8, 28, '#6c715c');
+    } else if (area === 'school') {
+      rect(-90, -330, 180, 330, '#8c9e9d'); rect(-79, -296, 158, 142, '#5c7d83', '#cdd7bd');
+      for (const x of [-32, 25]) line([[x, -296], [x, -154]], '#cad9c3', 5);
+      rect(-75, -101, 150, 42, '#456b63'); label(index % 2 ? 'キャンパス' : '学び舎', 0, -74, 15, '#d4dfc3');
+      rect(-95, -15, 190, 15, '#bca88b');
+    } else if (area === 'station') {
+      rect(-53, -328, 106, 328, '#a1b1a6'); rect(-53, -121, 106, 15, '#6c96a5');
+      rect(-83, -283, 166, 47, '#426675'); label('通学線', 0, -253, 20, '#caddcc');
+      rect(-80, -38, 160, 10, '#b1bead'); rect(-70, -28, 9, 28, '#465965'); rect(61, -28, 9, 28, '#465965');
+    } else if (area === 'bus') {
+      rect(-88, -326, 176, 326, '#748c98'); rect(-76, -292, 152, 142, '#a5b9b2', '#d1d9bf');
+      line([[-68, -280], [67, -160]], '#e0e8cf64', 4); rect(-73, -129, 146, 88, '#356f81', '#95b6b7'); rect(-83, -44, 166, 20, '#3b6176');
+      line([[83, -321], [83, -15]], '#d6bd76', 7); circle(70, -194, 8, '#bb8870');
+    } else if (area === 'store') {
+      rect(-91, -266, 182, 266, '#658683');
+      for (let row = 0; row < 4; row++) { rect(-94, -230 + row * 57, 188, 7, '#d3d7bd'); for (let col = 0; col < 7; col++) rect(-80 + col * 24, -258 + row * 57, 18, 28, ['#b98b70', '#abc799', '#c7b876'][col % 3]); }
+      rect(-97, -291, 194, 26, '#b9ce9e'); label('街のお店', 0, -273, 14, '#3d675b');
+    } else if (area === 'home') {
+      rect(-94, -321, 188, 321, '#a68f6d'); rect(-79, -305, 158, 279, '#d3c9a3');
+      for (let y = -270; y < -20; y += 48) line([[-78, y], [78, y]], '#9f8b69', 4);
+      for (const x of [-27, 27]) line([[x, -303], [x, -29]], '#9f8b69', 4);
+      rect(-102, -20, 204, 20, '#b2b48a');
+    }
   }
 
   function doorBase(top, frame, wall, depth = 28) {
@@ -333,6 +376,114 @@
       rect(-70, -360, 140, 7, '#dbe3c4');
     }
   };
+  Object.assign(doorDrawers, {
+    strap(e, top) {
+      rect(-330, -395, 660, 25, '#8aa1a3'); line([[-315, -375], [315, -375]], '#d8ddce', 8);
+      for (const x of [-130, 0, 130]) {
+        rect(x - 7, -375, 14, top + 375 - 42, '#c1ccbe');
+        ctx.beginPath(); ctx.ellipse(x, top - 22, 24, 18.5, 0, 0, Math.PI * 2); ctx.strokeStyle = '#e6e8d3'; ctx.lineWidth = 7; ctx.stroke();
+      }
+      for (const x of [-310, 245]) { rect(x, -255, 65, 150, '#86a5a5', '#bdd0c2'); rect(x, -82, 65, 54, '#466c79'); }
+    },
+    rack(e, top) {
+      rect(-340, -373, 680, 17, '#7c949a');
+      line([[-315, top - 30], [315, top - 30]], '#a8bfc0', 8);
+      for (let x = -310; x <= 310; x += 27) line([[x, top - 27], [x + 10, top - 9]], '#d0dacb', 3);
+      line([[-315, top - 7], [315, top - 7]], '#dbe4d2', 14);
+      line([[-315, top - 7], [-315, -370]], '#91a9b0', 8); line([[315, top - 7], [315, -370]], '#91a9b0', 8);
+      rect(-202, top - 61, 99, 30, '#977c63', '#d3baa1'); rect(97, top - 57, 66, 26, '#5d7c83');
+    },
+    bus(e, top) {
+      doorBase(top, '#b9c8c1', '#84999d', 35); rect(-330, -369, 660, 369 + top, '#66818e');
+      for (const x of [-315, 250]) { rect(x, top + 40, 64, 92, '#a6c1b7'); rect(x, -97, 67, 65, '#3c778c'); rect(x - 6, -36, 78, 16, '#365b73'); }
+      line([[-274, -300], [-274, -20]], '#e0c784', 8); line([[279, -300], [279, -20]], '#e0c784', 8);
+      rect(-90, top - 43, 180, 25, '#a0b5ad'); label('後方座席', 0, top - 24, 14, '#415f64');
+    },
+    club(e, top) {
+      doorBase(top, '#8e7459', '#b0a68c');
+      for (const x of [-329, 248]) { rect(x, top + 6, 80, -top - 13, '#917b5c'); rect(x + 8, top + 22, 64, 58, '#c1c4a0', '#6c715e'); line([[x + 42, top + 23], [x + 42, top + 80]], '#6c715e', 3); rect(x + 20, -140, 5, 27, '#d3c2a0'); }
+      rect(-319, -69, 42, 47, '#6f9a82'); circle(291, -30, 22, '#bd9866'); label('部室', 0, top - 34, 19, '#e4dcc4');
+    },
+    izakaya(e, top) {
+      doorBase(top, '#6d5948', '#8b775e');
+      for (const x of [-306, 275]) { circle(x, top + 49, 24, '#cd9579'); line([[x - 20, top + 49], [x + 20, top + 49]], '#a4755e', 3); }
+      for (let x = -222; x < 230; x += 89) rect(x, top - 53, 82, 34, '#435e6a');
+      label('街の食堂', 0, top - 27, 18, '#e2d7ae');
+    },
+    tatami(e, top) {
+      doorBase(top, '#8f7958', '#b8b291');
+      for (const x of [-327, 247]) { rect(x, top + 8, 80, -top - 17, '#ded2a9'); for (let y = top + 45; y < -10; y += 43) line([[x, y], [x + 80, y]], '#9e8866', 4); line([[x + 40, top + 8], [x + 40, -10]], '#9e8866', 4); }
+      poly([[-235, 0], [235, 0], [270, 28], [-270, 28]], '#aab08a'); line([[-30, 0], [-30, 27]], '#647556', 5);
+    },
+    classroom(e, top) {
+      doorBase(top, '#b0bdb4', '#a3aea0');
+      for (const x of [-327, 248]) { rect(x, top + 7, 79, -top - 13, e.low ? '#9e8a6d' : '#c1c9ba'); rect(x + 8, top + 28, 64, 103, '#86a8a5', '#dfe2c7'); line([[x + 40, top + 28], [x + 40, top + 131]], '#ced8bf', 3); rect(x + 18, -128, 6, 29, '#687d7d'); }
+      rect(-97, top - 54, 194, 28, '#45696e'); label(e.low ? '旧校舎' : '教室', 0, top - 34, 16, '#e1e3c5');
+    },
+    'auto-door'(e, top) {
+      doorBase(top, '#c4d6cb', '#6c9794');
+      for (const x of [-329, 248]) { rect(x, top + 7, 81, -top - 14, '#a1c3ba99', '#e5ebcf'); rect(x, -159, 81, 11, '#dfd89f'); }
+      rect(-328, top - 43, 656, 26, '#b8d4a7'); line([[-328, top - 17], [328, top - 17]], '#609b9a', 9); label('街のコンビニ', 0, top - 23, 17, '#3c6762'); rect(-26, top - 15, 52, 8, '#445d62');
+    },
+    supermarket(e, top) {
+      doorDrawers['auto-door'](e, top); rect(-328, top - 61, 656, 35, '#bd965e'); label('スーパーマーケット', 0, top - 36, 20, '#f0e7c7');
+      for (const x of [-288, 276]) { rect(x - 29, -77, 58, 45, '#a4bbb0', '#e2d9bc'); line([[x - 24, -69], [x + 24, -69]], '#647f7c', 3); circle(x - 19, -23, 8, '#506571'); circle(x + 19, -23, 8, '#506571'); }
+    },
+    lecture(e, top) {
+      doorBase(top, '#a3aca0', '#83958a'); rect(-149, top - 52, 298, 29, '#4b626c'); label('講義室', 0, top - 31, 19, '#e5e4c6');
+      for (const x of [-326, 249]) { rect(x, top + 9, 77, -top - 19, '#9c8870'); rect(x + 10, top + 31, 58, 73, '#839fa0'); rect(x + 29, -166, 6, 44, '#d6d1b5'); }
+    },
+    gate() {
+      for (const side of [-1, 1]) { const x = side < 0 ? -158 : 72; rect(x, -155, 86, 155, '#69878b', '#b9cec3'); poly([[x, -155], [x + 86, -155], [x + 99, -172], [x + 13, -172]], '#bed0be'); rect(x + 26, -176, 36, 8, '#46746e'); rect(x + 9, -109, 64, 36, '#304d5c'); circle(x + 39, -91, 7, '#95bea6'); }
+      line([[-72, -8], [72, -8]], '#c0d3ac', 3);
+    }
+  });
+  function groundObstacle(e) {
+    const h = e.height * CM, width = e.width * CM;
+    ctx.fillStyle = '#132c384d'; ctx.beginPath(); ctx.ellipse(0, 2, width * .6, 10, 0, 0, Math.PI * 2); ctx.fill();
+    if (['pole', 'park-pole'].includes(e.style)) {
+      ctx.beginPath(); ctx.ellipse(0, -5, 27, 8, 0, 0, Math.PI * 2); ctx.fillStyle = '#4e5b56'; ctx.fill();
+      rect(-width / 2, -h, width, h - 5, e.style === 'pole' ? '#db874f' : '#a48960');
+      ctx.beginPath(); ctx.ellipse(0, -h + 7, width / 2, 7, 0, 0, Math.PI * 2); ctx.fillStyle = e.style === 'pole' ? '#e89d63' : '#b1a17b'; ctx.fill();
+      for (const ratio of [.2, .46]) rect(-width / 2, -h + h * ratio, width, 10, '#e9e3c8');
+    } else if (e.style === 'cone') {
+      rect(-width / 2 - 7, -9, width + 14, 9, '#aa653c'); poly([[-width / 2, -9], [-7, -h], [7, -h], [width / 2, -9]], '#df914e');
+      poly([[-width * .28, -h * .45], [-width * .20, -h * .65], [width * .20, -h * .65], [width * .28, -h * .45]], '#ebe5c5');
+    } else if (e.style === 'marker') {
+      poly([[-width / 2, -4], [-width / 4, -h], [width / 4, -h], [width / 2, -4]], '#d3b860'); circle(0, -h + 4, 3, '#6f8c7a');
+    } else if (e.style === 'divider') {
+      rect(-width / 2, -h, width, 15, '#bdb58c'); for (const x of [-width * .35, width * .35]) rect(x, -h + 15, 8, h - 15, '#819088');
+    } else if (['balance', 'hurdle', 'play-base'].includes(e.style)) {
+      if (e.style === 'play-base') { poly([[-width / 2, 0], [-width / 2 + 15, -h], [width / 2 - 15, -h], [width / 2, 0]], '#719b8c', '#a9c7ab'); rect(-width / 2 + 20, -h + 10, width - 40, 8, '#c1d0af'); }
+      else { rect(-width / 2, -h, width, 10, e.style === 'balance' ? '#b7a074' : '#ddd4a4'); for (const x of [-width * .43, width * .43]) { rect(x, -h + 10, 7, h - 10, '#859e8b'); rect(x - 15, -6, 35, 6, '#799084'); } }
+    } else {
+      ctx.save(); ctx.scale(width / ({ panda: 114, elephant: 137, turtle: 133, horse: 143 }[e.style] || 143), 1);
+      rect(-35, -9, 70, 9, '#728274');
+      const spring = []; for (let j = 0; j < 7; j++) spring.push([j % 2 ? 13 : -13, -12 - j * h * .025]); line(spring, '#d3d5b7', 5);
+      if (e.style === 'panda') {
+        ctx.beginPath(); ctx.ellipse(-9, -h * .46, 44, h * .24, 0, 0, Math.PI * 2); ctx.fillStyle = '#e2e3d1'; ctx.fill();
+        circle(28, -h * .76, h * .20, '#e3e6d2'); circle(12, -h + 10, 10, '#30464c'); circle(42, -h + 10, 10, '#30464c');
+        circle(20, -h * .77, 9, '#33484c'); circle(39, -h * .77, 9, '#33484c'); circle(23, -h * .79, 2, '#f3f0d7'); circle(42, -h * .79, 2, '#f3f0d7'); circle(31, -h * .64, 5, '#33484c');
+        line([[-32, -h * .5], [-42, -h * .29]], '#33484c', 16); line([[15, -h * .47], [16, -h * .25]], '#33484c', 16);
+      } else if (e.style === 'elephant') {
+        ctx.beginPath(); ctx.ellipse(-13, -h * .5, 51, h * .28, 0, 0, Math.PI * 2); ctx.fillStyle = '#9eb2b0'; ctx.fill();
+        circle(33, -h * .72, h * .26, '#aabbb5'); circle(11, -h * .72, h * .23, '#8fa7a7'); circle(43, -h * .81, 4, '#344e56');
+        line([[53, -h * .65], [66, -h * .45], [63, -h * .26], [53, -h * .24]], '#b2c3b9', 14); line([[-42, -h * .38], [-42, -h * .2]], '#8ca4a5', 14);
+      } else if (e.style === 'turtle') {
+        ctx.beginPath(); ctx.ellipse(-5, -h * .57, 55, h * .42, 0, Math.PI, Math.PI * 2); ctx.fillStyle = '#608d6b'; ctx.fill();
+        rect(-60, -h * .57, 110, h * .21, '#75a07a'); circle(58, -h * .49, 15, '#a3b780'); circle(62, -h * .59, 3, '#34574e');
+        for (const x of [-35, 20]) circle(x, -h * .29, 10, '#a4b986'); line([[-43, -h * .65], [-14, -h * .89], [15, -h * .62], [39, -h * .68]], '#bfd1a0', 3);
+      } else {
+        ctx.beginPath(); ctx.ellipse(-16, -h * .47, 47, h * .23, 0, 0, Math.PI * 2); ctx.fillStyle = '#b99672'; ctx.fill();
+        poly([[5, -h * .48], [18, -h * .90], [43, -h * .98], [67, -h * .75], [62, -h * .62], [40, -h * .64], [30, -h * .40]], '#c5a67e');
+        poly([[26, -h * .89], [23, -h], [35, -h * .92]], '#c5a67e'); circle(46, -h * .79, 4, '#3c5052'); line([[12, -h * .86], [2, -h * .55]], '#736451', 8);
+        for (const x of [-40, 12]) line([[x, -h * .39], [x + 4, -h * .2]], '#a88665', 13); line([[-61, -h * .52], [-76, -h * .29]], '#786751', 8);
+      }
+      // Common handles and saddle on otherwise distinct animal silhouettes.
+      line([[-5, -h * .67], [-5, -h * .80], [6, -h * .80]], '#657c78', 4); rect(-30, -h * .67, 31, 6, '#d2bc86');
+      ctx.restore();
+    }
+  }
   function obstacle(e) {
     if (e.z < -e.length - 5) return;
     const { s, y } = project(e.z);
@@ -340,14 +491,22 @@
     ctx.save(); ctx.translate(CX, y); ctx.scale(s, s);
     ctx.globalAlpha = Math.min(1, (e.z + e.length + 5) / 5);
     // A second inner frame communicates the depth and passage duration.
-    rect(-258, -370, 28, 370, '#344e5959'); rect(230, -370, 28, 370, '#344e5959');
-    doorDrawers[e.style](e, top);
+    if (['straddle', 'jump'].includes(e.rule)) groundObstacle(e);
+    else {
+      if (e.rule !== 'open') { rect(-258, -370, 28, 370, '#344e5959'); rect(230, -370, 28, 370, '#344e5959'); }
+      doorDrawers[e.style](e, top);
+    }
     ctx.restore();
   }
 
   function itemObject(type, x, y, scale = 1) {
     ctx.save(); ctx.translate(x, y); ctx.scale(scale, scale);
     switch (type) {
+      case 'phone': rect(-13, -35, 26, 35, '#233c49', '#bbcab6'); rect(-9, -31, 18, 24, '#79a8a2'); circle(0, -4, 2, '#d8ddba'); break;
+      case 'student-id': rect(-20, -26, 40, 26, '#dddcca', '#6c9990'); rect(-15, -21, 11, 15, '#84a5a5'); circle(-10, -18, 3, '#d9c4a1'); for (let y = -20; y < -4; y += 5) rect(1, y, 15, 2, '#859c88'); break;
+      case 'earphones': ctx.beginPath(); ctx.arc(0, -18, 17, Math.PI, Math.PI * 2); ctx.strokeStyle = '#b3c8b6'; ctx.lineWidth = 4; ctx.stroke(); rect(-20, -20, 8, 16, '#536e7b'); rect(12, -20, 8, 16, '#536e7b'); line([[18, -4], [12, 0]], '#d2d9bd', 2); break;
+      case 'notebook': rect(-19, -30, 38, 30, '#c1d2b1', '#567f75'); for (let y = -24; y < -3; y += 6) line([[-12, y], [14, y]], '#849b8b'); for (let y = -26; y < -3; y += 7) circle(-19, y, 2, '#e4deba'); break;
+      case 'pencil-case': rect(-24, -18, 48, 18, '#c3a880', '#86765c'); line([[-20, -13], [18, -13]], '#e0d3a1', 2); rect(15, -13, 5, 7, '#637d7b'); break;
       case 'drink': rect(-8, -23, 16, 23, '#d6edda', '#668c88'); rect(-5, -28, 10, 6, '#405f64'); rect(-8, -15, 16, 8, '#bb6565'); break;
       case 'hat': poly([[-21, -5], [-15, -9], [-12, -24], [12, -24], [17, -9], [25, -5], [25, 0], [-21, 0]], '#d3b183', '#8c7155'); line([[-14, -9], [16, -9]], '#688275', 5); break;
       case 'book': rect(-18, -24, 36, 24, '#d9ce9c', '#705f58'); rect(-18, -24, 5, 24, '#ba7868'); line([[-9, -18], [12, -18]], '#9c9870', 2); break;
@@ -394,6 +553,13 @@
       rect(-8, -h, 16, h, '#506e78'); rect(-78, -h, 156, 67, '#a1b5a6', '#d7d4b5'); label('街の案内', 0, -h + 28, 16, '#385c63'); line([[-38, -h + 46], [38, -h + 46]], '#5b7c78', 3); poly([[30, -h + 40], [40, -h + 46], [30, -h + 52]], '#5b7c78');
     }
   };
+  Object.assign(propDrawers, {
+    bench(h) { rect(-73, -h, 146, 10, '#b9a077'); for (const x of [-56, 48]) rect(x, -h + 10, 8, h - 10, '#687e78'); rect(-68, -h + 25, 136, 6, '#7d8d7c'); },
+    blackboard(h) { rect(-130, -h, 260, 145, '#395e56', '#bfb990'); label('放課後の予定', 0, -h + 50, 19, '#cbd9b6'); line([[-90, -h + 79], [55, -h + 79]], '#c0cfaf', 2); line([[-90, -h + 105], [81, -h + 105]], '#c0cfaf', 2); rect(-138, -h + 145, 276, 9, '#d6c39b'); for (const x of [-110, 104]) rect(x, -h + 154, 6, h - 154, '#7d998a'); },
+    volley(h) { rect(-4, -h, 8, h, '#cfccc1'); for (let y = -h + 8; y < -h + 92; y += 17) rect(-4, y, 8, 8, '#b07564'); rect(-101, -h + 112, 200, 8, '#d7d6bf'); for (let x = -96; x < 100; x += 20) line([[x, -h + 120], [x, -h + 208]], '#becab54d'); for (let y = -h + 135; y < -h + 210; y += 20) line([[-99, y], [99, y]], '#becab54d'); },
+    'gym-wall'(h) { rect(-105, -h, 210, h, '#8da18d'); for (let y = -h + 29; y < -10; y += 36) line([[-91, y], [91, y]], '#bcc8a6', 7); line([[-91, -h], [-91, 0]], '#667d72', 7); line([[91, -h], [91, 0]], '#667d72', 7); },
+    tree(h) { rect(-13, -h + 23, 26, h - 23, '#83714f'); line([[0, -h + 63], [55, -h + 5]], '#83714f', 14); circle(9, -h + 56, 59, '#477859'); circle(-39, -h + 41, 44, '#5e8d63'); circle(56, -h + 68, 43, '#709567'); }
+  });
   function item(e) {
     if (e.collected || e.z < -10) return;
     const { s, y } = project(e.z);
@@ -423,17 +589,24 @@
     ctx.save();
     ctx.fillStyle = '#0b253b50'; ctx.beginPath(); ctx.ellipse(CX, GROUND + 4, 47 - Math.min(15, model.jumpY * .2), 11, 0, 0, Math.PI * 2); ctx.fill();
     ctx.translate(CX, GROUND - jumpOffset);
-    const height = (crouched ? CONFIG.CROUCH_HEIGHT : CONFIG.PLAYER_HEIGHT) * CM;
+    const height = (crouched ? CONFIG.CROUCH_HEIGHT : CONFIG.PASSAGE_HEIGHT) * CM;
     const headY = -height + 21;
-    const hips = crouched ? -75 : -132;
+    const hips = crouched ? -75 : -CONFIG.INSEAM * CM;
     const shoulder = crouched ? -143 : -226;
     // Back foot, forward foot and bright soles provide a clear running cycle.
     ctx.lineCap = 'round';
     const stride = model.jumpY > 0 ? 14 : Math.sin(phase) * (crouched ? 14 : 24);
-    line([[-13, hips], [-21 - stride * .65, -65 + stride * .55], [-18 - stride, -10 - Math.max(0, stride * .6)]], '#29475b', 24);
-    line([[14, hips], [20 + stride * .65, -65 - stride * .55], [19 + stride, -10 - Math.max(0, -stride * .6)]], '#3d5e70', 25);
-    line([[-21 - stride, -5 - Math.max(0, stride * .6)], [-4 - stride, -5 - Math.max(0, stride * .6)]], '#c4d8c9', 11);
-    line([[11 + stride, -5 - Math.max(0, -stride * .6)], [30 + stride, -5 - Math.max(0, -stride * .6)]], '#d5e5d2', 11);
+    if (model.straddling) {
+      const gap = (CONFIG.MAX_STRADDLE_WIDTH / 2 + 10) * CM;
+      line([[-13, hips], [-gap * .65, -70], [-gap, -10]], '#29475b', 24);
+      line([[14, hips], [gap * .65, -70], [gap, -10]], '#3d5e70', 25);
+      line([[-gap - 9, -5], [-gap + 10, -5]], '#c4d8c9', 11); line([[gap - 10, -5], [gap + 10, -5]], '#d5e5d2', 11);
+    } else {
+      line([[-13, hips], [-21 - stride * .65, -65 + stride * .55], [-18 - stride, -10 - Math.max(0, stride * .6)]], '#29475b', 24);
+      line([[14, hips], [20 + stride * .65, -65 - stride * .55], [19 + stride, -10 - Math.max(0, -stride * .6)]], '#3d5e70', 25);
+      line([[-21 - stride, -5 - Math.max(0, stride * .6)], [-4 - stride, -5 - Math.max(0, stride * .6)]], '#c4d8c9', 11);
+      line([[11 + stride, -5 - Math.max(0, -stride * .6)], [30 + stride, -5 - Math.max(0, -stride * .6)]], '#d5e5d2', 11);
+    }
     // Body and backpack, with folded torso when crouching.
     poly([[-32 + sway * .3, shoulder + bob], [31 + sway * .3, shoulder + bob], [27, hips + 10], [-27, hips + 10]], '#c2df73', '#7eae68');
     rect(-18 + sway * .3, shoulder + 13 + bob, 37, 67, '#3b6770');
@@ -442,8 +615,8 @@
     line([[23, shoulder + 7], [25, hips - 17]], '#e5edaa', 4);
     // Arms extend only after E, independent of whether the attempt succeeds.
     const reaching = model.effects.some(f => ['reach', 'collect'].includes(f.type));
-    const reachHigh = model.effects.some(f => f.high);
-    const handY = reaching ? -(reachHigh ? 228 : 201) * CM : shoulder + 63;
+    const reachEffect = model.effects.find(f => ['reach', 'collect'].includes(f.type));
+    const handY = reaching ? -Math.min(CONFIG.STANDING_REACH, Math.max(100, (reachEffect?.height ?? CONFIG.STANDING_REACH) - model.jumpY)) * CM : shoulder + 63;
     line([[-31, shoulder + 11], [-43 - stride * .4, shoulder + 42], [-38 - stride * .55, shoulder + 76]], '#c4df78', 15);
     line([[32, shoulder + 11], [reaching ? 61 : 44 + stride * .4, reaching ? shoulder - 6 : shoulder + 38], [reaching ? 106 : 39 + stride * .55, handY]], '#cce68b', 16);
     circle(reaching ? 106 : 39 + stride * .55, handY, 8, '#dcba95');
@@ -473,7 +646,7 @@
     ctx.clearRect(0, 0, W, H); background();
     const events = [...model.events].sort((a, b) => b.z - a.z);
     if (model.mode === 'title') {
-      obstacle({ style: 'train', clearance: 192, z: 23, length: 6 });
+      obstacle({ style: 'train', rule: 'overhead', clearance: 200, z: 23, length: 6 });
       item({ prop: 'vending', object: 'drink', height: 201, z: 8, kind: 'item' });
     }
     for (const event of events) if (event.z >= 0) (event.kind === 'obstacle' ? obstacle : item)(event);
@@ -482,6 +655,28 @@
     effects();
     const vignette = ctx.createRadialGradient(CX, 350, 180, CX, 350, 610);
     vignette.addColorStop(0, '#06132200'); vignette.addColorStop(1, '#0613227a'); rect(0, 0, W, H, vignette);
+    eventNames(events);
+  }
+  function eventNames(events) {
+    const placed = [];
+    for (const e of events) {
+      if (e.collected || e.z < -6 || !e.name) continue;
+      const { s, y } = project(e.z);
+      let x = CX + (e.kind === 'item' ? 130 * s : 0);
+      const top = e.kind === 'item' || ['straddle', 'jump'].includes(e.rule) ? e.height * CM : e.rule === 'open' ? 172 : Math.max(370, e.clearance * CM);
+      let tagY = Math.max(106, y - top * s - 20);
+      ctx.font = '600 13px "Yu Gothic", sans-serif';
+      const width = ctx.measureText(e.name).width + 18;
+      for (let attempt = 0; attempt < 12; attempt++) {
+        if (!placed.some(p => Math.abs(p.x - x) < (p.width + width) / 2 + 5 && Math.abs(p.y - tagY) < 23)) break;
+        tagY -= 24;
+        if (tagY < 100) { tagY = 110; x += width + 12; }
+      }
+      x = Math.max(width / 2 + 6, Math.min(W - width / 2 - 6, x));
+      placed.push({ x, y: tagY, width });
+      rect(x - width / 2, tagY - 15, width, 22, '#102432db');
+      label(e.name, x, tagY, 13, '#e3ead8');
+    }
   }
   function frame(now) {
     const dt = lastTime === null ? 0 : (now - lastTime) / 1000; lastTime = now;
@@ -492,8 +687,8 @@
     if (resumeAt) {
       const remaining = resumeAt - now;
       $('countdown').textContent = String(Math.max(1, Math.ceil(remaining / 1000)));
-      if (remaining <= 0) { resumeAt = 0; model.paused = false; clearInput(); }
-    } else model.update(dt, touchCrouch || ['ArrowDown', 'ShiftLeft', 'ShiftRight'].some(k => held.has(k)));
+      if (remaining <= 0) { resumeAt = 0; model.paused = false; }
+    } else model.update(dt, touchCrouch || ['ArrowDown', 'ShiftLeft', 'ShiftRight'].some(k => held.has(k)), touchStraddle || held.has('KeyS'));
     syncUI(); draw(); requestAnimationFrame(frame);
   }
   if (storage.get('skipTutorial', 'false') !== 'true') model.startTutorial();

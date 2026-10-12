@@ -43,6 +43,7 @@ with tempfile.TemporaryDirectory() as directory:
         assert old_server.fileno() == -1
         with urlopen(f'http://127.0.0.1:{namespace["GAME_PORT"]}/index.html') as response:
             assert response.status == 200
+            assert response.read().decode('utf-8') == html
         (root / 'work/colab-bundle.html').write_text(html, encoding='utf-8')
         print('PASS: three complete cells compile; standalone HTML served; iframe API arguments; server rerun cleanup')
     finally:

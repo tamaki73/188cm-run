@@ -21,6 +21,7 @@ jobs:
           node --check game-engine.js
           node --check game.js
           node tests/engine.test.js
+          node tests/virtual-player.cjs
       - name: Colab成果物の一致とHTTP起動の検証
         run: |
           mkdir -p work

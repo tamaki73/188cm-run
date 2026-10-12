@@ -3,16 +3,39 @@
   'use strict';
   // Adjust these values to tune the game. Simulation uses seconds, never frame counts.
   const CONFIG = Object.freeze({
-    INITIAL_SPEED: 16, SPEED_ACCELERATION: 0.009, MAX_SPEED: 30,
-    MIN_SPAWN_INTERVAL: 2.05, MAX_SPAWN_INTERVAL: 3.05,
-    JUMP_POWER: 265, GRAVITY: 620,
-    CROUCH_STRAIN_RATE: 15, STRAIN_RECOVERY_RATE: 7,
-    JUMP_STRAIN: 16, ANKLE_RECOVERY_RATE: 1.5,
-    PLAYER_HEIGHT: 188, CROUCH_HEIGHT: 122,
-    SPAWN_DISTANCE: 100, TUTORIAL_SPEED: 9,
-    ITEM_REACH_TIME: 0.24, HIGH_ITEM_MIN_JUMP: 25,
-    FIXED_STEP: 1 / 120
+    PLAYER_HEIGHT: 188, PASSAGE_HEIGHT: 190, INSEAM: 90,
+    VERTICAL_JUMP: 75, STANDING_REACH: 252, MAX_REACH: 327,
+    INITIAL_SPEED: 16, MAX_SPEED: 56, TUTORIAL_SPEED: 9,
+    GRAVITY: 600, JUMP_POWER: 300, CROUCH_HEIGHT: 122,
+    MAX_STRADDLE_WIDTH: 80, STRADDLE_STRAIN_RATE: 10,
+    CROUCH_STRAIN_RATES: [8, 14, 22], CROUCH_STAGE_SECONDS: [2, 4],
+    CROUCH_RESET_SECONDS: 1, STRAIN_RECOVERY_RATE: 6,
+    JUMP_STRAIN: 8, ANKLE_RECOVERY_RATE: 2,
+    ITEM_REACH_TIME: 0.30, REACH_TOLERANCE: 2,
+    MIN_REACTION_TIME: 3.4, ACTION_BUFFER: 0.3, PLANNER_STRAIN_LIMIT: 45,
+    AREA_LENGTH: 180, SPAWN_DISTANCE: 100, FIXED_STEP: 1 / 120
   });
+  const SPEED_POINTS = [[0, 1], [100, 1.4], [200, 1.9], [300, 2.4], [500, 3.1], [800, 3.5]];
+  function speedAt(distance) {
+    for (let i = 1; i < SPEED_POINTS.length; i++) {
+      const [end, value] = SPEED_POINTS[i], [start, previous] = SPEED_POINTS[i - 1];
+      if (distance <= end) {
+        const t = Math.max(0, (distance - start) / (end - start));
+        return CONFIG.INITIAL_SPEED * (previous + (value - previous) * t * t * (3 - 2 * t));
+      }
+    }
+    return CONFIG.MAX_SPEED;
+  }
+  const AREAS = [
+    { id: 'street', name: '通学路', sky: '#79979c', floor: '#263b42', accent: '#a5c59b' },
+    { id: 'school', name: '学校・大学', sky: '#8da9ba', floor: '#6d756d', accent: '#c8d9a4' },
+    { id: 'station', name: '電車・駅', sky: '#7e99a5', floor: '#344751', accent: '#a1c7cd' },
+    { id: 'bus', name: '路線バス', sky: '#8c9d9e', floor: '#3c4e61', accent: '#c9b78c' },
+    { id: 'store', name: 'コンビニ・スーパー', sky: '#97b4b0', floor: '#566967', accent: '#bcdaaa' },
+    { id: 'park', name: '公園', sky: '#8db7af', floor: '#556c49', accent: '#c2d194' },
+    { id: 'home', name: '自宅', sky: '#b5a6a0', floor: '#685e48', accent: '#d6bc91' }
+  ];
+  const areaAt = distance => AREAS[Math.floor(Math.max(0, distance) / CONFIG.AREA_LENGTH) % AREAS.length];
   const OBSTACLES = [
     { id: 'train', name: '通勤電車', style: 'train', low: false },
     { id: 'subway', name: '地下通路', style: 'concrete', low: false },
@@ -40,164 +63,300 @@
     { id: 'storage', prop: 'storage', object: 'trinket', high: true },
     { id: 'sign', prop: 'sign', object: 'trinket', high: true }
   ];
+  // Preserve the original fixtures, and add student-life events to the same catalogs.
+  for (const def of OBSTACLES) {
+    def.rule = 'overhead'; def.min = def.low ? 182 : 190; def.max = def.low ? 187 : 194;
+    def.areas = ['train', 'subway', 'low-train', 'low-subway', 'stairs'].includes(def.id) ? ['station'] :
+      ['loading', 'shop'].includes(def.id) ? ['store'] : ['warehouse', 'gym'].includes(def.id) ? ['school'] : def.id === 'parking' ? ['street'] : ['home'];
+  }
+  const overhead = (id, name, style, min, max, areas) => ({ id, name, style, min, max, areas, rule: 'overhead', low: min < CONFIG.PASSAGE_HEIGHT });
+  OBSTACLES.push(
+    overhead('strap', '電車の吊り革', 'strap', 160, 165, ['station']),
+    overhead('rack-bar', '電車の網棚', 'rack', 180, 185, ['station']),
+    overhead('bus-roof', 'バスの後方天井', 'bus', 180, 185, ['bus']),
+    overhead('club-door', '古い部室の引き戸', 'club', 175, 180, ['school']),
+    overhead('izakaya', '古い居酒屋の鴨居', 'izakaya', 175, 180, ['street']),
+    overhead('old-class', '古い教室のドア', 'classroom', 185, 185, ['school']),
+    overhead('tatami', '和室の鴨居', 'tatami', 175, 180, ['home']),
+    overhead('new-class', '新しい教室のドア', 'classroom', 200, 200, ['school']),
+    overhead('convenience', 'コンビニの自動ドア', 'auto-door', 200, 210, ['store']),
+    overhead('supermarket', 'スーパーの自動ドア', 'supermarket', 200, 210, ['store']),
+    overhead('lecture', '大学の講義室', 'lecture', 200, 200, ['school']),
+    { id: 'ticket-gate', name: '駅の自動改札', style: 'gate', rule: 'open', min: Infinity, max: Infinity, areas: ['station'] },
+    { id: 'lane-pole', name: '車線分離ポール', style: 'pole', rule: 'straddle', min: 60, max: 75, width: 20, areas: ['street'] },
+    { id: 'cone', name: '部活動のカラーコーン', style: 'cone', rule: 'straddle', min: 50, max: 50, width: 38, areas: ['street', 'school'] },
+    { id: 'marker', name: '体育のマーカー', style: 'marker', rule: 'straddle', min: 15, max: 15, width: 35, areas: ['school'] },
+    { id: 'divider', name: '通学路の仕切り', style: 'divider', rule: 'straddle', min: 35, max: 35, width: 60, areas: ['street'] },
+    { id: 'park-pole', name: '公園の小さなポール', style: 'park-pole', rule: 'straddle', min: 65, max: 65, width: 22, areas: ['park'] },
+    ...[['panda', 'パンダ', 45], ['elephant', 'ゾウ', 50], ['turtle', 'カメ', 35], ['horse', 'ウマ', 55]].map(([id, animal, height]) =>
+      ({ id, name: animal + 'のスプリング遊具', style: id, rule: 'jump', min: height, max: height, width: 130, areas: ['park'] })),
+    { id: 'balance', name: '公園の平均台', style: 'balance', rule: 'jump', min: 30, max: 30, width: 155, areas: ['park'] },
+    { id: 'play-base', name: '遊具の土台', style: 'play-base', rule: 'jump', min: 40, max: 40, width: 140, areas: ['park'] },
+    { id: 'hurdle', name: '体育のミニハードル', style: 'hurdle', rule: 'jump', min: 30, max: 50, width: 140, areas: ['school'] }
+  );
+  const objectNames = { drink: '飲み物', hat: '帽子', trinket: '小物', book: '本', wallet: '財布', ball: 'ボール', towel: 'タオル' };
+  for (const def of ITEMS) {
+    def.name = objectNames[def.object]; def.min = def.high ? (def.prop === 'basket' ? 305 : 300) : 201;
+    def.max = def.high && def.prop === 'sign' ? 325 : def.min;
+    def.areas = def.prop === 'sign' ? ['street'] : ['locker', 'desk', 'basket', 'storage'].includes(def.prop) ? ['school'] : ['store'];
+  }
+  ITEMS.find(d => d.id === 'wallet').areas.push('bus', 'home');
+  ITEMS.push(
+    { id: 'phone', name: 'スマートフォン', object: 'phone', prop: 'bench', min: 115, max: 115, areas: ['street', 'bus', 'park', 'home'] },
+    { id: 'student-id', name: '学生証', object: 'student-id', prop: 'desk', min: 140, max: 140, areas: ['school', 'station'] },
+    { id: 'earphones', name: 'イヤホン', object: 'earphones', prop: 'bench', min: 130, max: 130, areas: ['street', 'station', 'park', 'home'] },
+    { id: 'notebook', name: 'ノート', object: 'notebook', prop: 'desk', min: 140, max: 140, areas: ['school', 'home'] },
+    { id: 'pencil-case', name: '筆箱', object: 'pencil-case', prop: 'desk', min: 145, max: 145, areas: ['school'] },
+    { id: 'blackboard-item', name: '黒板の上の学生証', object: 'student-id', prop: 'blackboard', min: 240, max: 250, areas: ['school'] },
+    { id: 'locker-item', name: 'ロッカーの上のノート', object: 'notebook', prop: 'locker', min: 230, max: 250, areas: ['school'] },
+    { id: 'volley-item', name: 'アンテナ付近のタオル', object: 'towel', prop: 'volley', min: 323, max: 323, areas: ['school'] },
+    { id: 'gym-towel', name: '体育館のタオル', object: 'towel', prop: 'gym-wall', min: 310, max: 310, areas: ['school'] },
+    { id: 'park-ball', name: '木の枝のボール', object: 'ball', prop: 'tree', min: 305, max: 305, areas: ['park'] }
+  );
   const LESSONS = [
-    ['まずは体を動かそう', '↓ または Shift を押してしゃがむ。Space でジャンプ。E で手を伸ばす。3つの操作を試してみましょう。'],
-    ['頭上の余裕を見よう', 'この入口は頭の上に少し余裕があります。何も押さず、立ったまま通過してみましょう。'],
-    ['低い入口を通ろう', '入口の上端が頭に重なっています。↓ または Shift を、入口を抜けるまで押し続けましょう。'],
-    ['体への負荷を知ろう', 'しゃがみ続けてゲージを12%以上にし、キーを離して6%以下まで回復させましょう。'],
-    ['手を伸ばして取ろう', '飲み物が手元に近づいたら、立ったまま E を押しましょう。取り逃がしても再挑戦できます。'],
-    ['高い物に届こう', 'タオルが近づいたら Space でジャンプし、空中で E を押しましょう。ジャンプだけでは取れません。'],
-    ['ジャンプにも負担がある', 'Space で3回ジャンプしてゲージの変化を見ましょう。足首の負荷はゆっくり回復します。']
+    ['4つの動作を試そう', '↓ / Shiftでしゃがむ、Sを押してまたぐ、Spaceでジャンプ、Eで手を伸ばす。4つを試しましょう。'],
+    ['立ったまま通過しよう', '新しい教室の入口には頭上の余裕があります。何も押さず、立ったまま抜けましょう。'],
+    ['頭上を避けよう', '吊り革の輪が頭に重なります。↓ / Shiftを、通過が終わるまで押し続けましょう。'],
+    ['脚を広げてまたごう', '細いポールが迫ります。Sを押して脚を左右に広げ、抜けるまで維持しましょう。'],
+    ['足元を上げて飛び越えよう', 'パンダの遊具に近づいたらSpace。足が遊具の上を通るよう、少し手前でジャンプしましょう。'],
+    ['立ってEで取得しよう', '学生証が手元に近づいたら、立ったままE。自動では取得しません。通常プレイは取り逃がすと終了です。'],
+    ['空中でEを押そう', '高いタオルはSpaceでジャンプし、頂点付近でE。現在の手の高さが届く必要があります。'],
+    ['疲労を管理しよう', 'しゃがんで12%以上にし、立って6%以下まで回復。最後に1回ジャンプして負荷を見ましょう。長押しほど疲労が増えます。'],
+    ['動作を組み合わせよう', 'しゃがむ → 立ってE → ジャンプしてE → Sでまたぐ → ジャンプで回避。見た目で判断して5つを続けましょう。']
   ];
   class GameModel {
     constructor(random = Math.random) { this.random = random; this.mode = 'title'; this.reset(); }
     reset() {
       this.distance = 0; this.itemScore = 0; this.items = 0;
-      this.crouchStrain = 0; this.ankleStrain = 0;
-      this.jumpY = 0; this.jumpVelocity = 0; this.crouching = false;
+      this.crouchStrain = 0; this.ankleStrain = 0; this.crouchEffort = 0; this.uprightTime = 0;
+      this.jumpY = 0; this.jumpVelocity = 0; this.crouching = false; this.straddling = false;
       this.speed = CONFIG.INITIAL_SPEED; this.events = []; this.effects = [];
       this.spawnTimer = 0.6; this.lastId = ''; this.kindRun = 0; this.lastKind = '';
       this.elapsed = 0; this.reason = ''; this.paused = false; this.serial = 0;
-      this.tutorial = { step: 0, done: false, actions: new Set(), peak: false, jumps: 0, retry: 0, feedback: '' };
+      this.planTime = 0; this.planLoad = 0; this.completedEvents = 0;
+      this.tutorial = { step: 0, done: false, actions: new Set(), peak: false, recovered: false, retry: 0, feedback: '', passed: 0 };
     }
     get strain() { return Math.min(100, this.crouchStrain + this.ankleStrain); }
     get score() { return Math.floor(this.distance * 10) + this.itemScore; }
-    get headHeight() { return (this.crouching && this.jumpY === 0 ? CONFIG.CROUCH_HEIGHT : CONFIG.PLAYER_HEIGHT) + this.jumpY; }
+    get headHeight() { return (this.crouching && this.jumpY === 0 ? CONFIG.CROUCH_HEIGHT : CONFIG.PASSAGE_HEIGHT) + this.jumpY; }
+    get handHeight() { return CONFIG.STANDING_REACH + this.jumpY; }
+    get area() { return areaAt(this.distance); }
     start() { this.reset(); this.mode = 'playing'; }
     startTutorial() { this.reset(); this.mode = 'tutorial'; this.speed = CONFIG.TUTORIAL_SPEED; this.setupLesson(); }
     title() { this.reset(); this.mode = 'title'; }
     setupLesson() {
-      this.events = []; this.jumpY = 0; this.jumpVelocity = 0; this.crouching = false;
-      this.crouchStrain = 0; this.ankleStrain = 0;
-      Object.assign(this.tutorial, { done: false, actions: new Set(), peak: false, jumps: 0, retry: 0, feedback: '' });
+      this.events = []; this.jumpY = 0; this.jumpVelocity = 0; this.crouching = false; this.straddling = false;
+      this.crouchStrain = 0; this.ankleStrain = 0; this.crouchEffort = 0; this.uprightTime = 0;
+      Object.assign(this.tutorial, { done: false, actions: new Set(), peak: false, recovered: false, retry: 0, feedback: '', passed: 0 });
       this.spawnLessonEvent();
     }
     nextLesson() {
       if (!this.tutorial.done) return;
-      if (this.tutorial.step === 6) { this.start(); return; }
+      if (this.tutorial.step === LESSONS.length - 1) { this.start(); return; }
       this.tutorial.step++; this.setupLesson();
     }
     spawnLessonEvent() {
+      const obstacle = (id, z = 43) => { const def = OBSTACLES.find(e => e.id === id); this.events.push(this.makeObstacle(def, def.min, z)); };
+      const item = (id, z = 43) => this.events.push(this.makeItem(ITEMS.find(e => e.id === id), z));
       const step = this.tutorial.step;
-      if (step === 1) this.events.push(this.makeObstacle(OBSTACLES[0], 192, 43));
-      if (step === 2) this.events.push(this.makeObstacle(OBSTACLES[5], 184, 43));
-      if (step === 4) this.events.push(this.makeItem(ITEMS[0], 43));
-      if (step === 5) this.events.push(this.makeItem(ITEMS[6], 43));
+      if (step === 1) obstacle('new-class');
+      if (step === 2) obstacle('strap');
+      if (step === 3) obstacle('lane-pole');
+      if (step === 4) obstacle('panda');
+      if (step === 5) item('student-id');
+      if (step === 6) item('towel');
+      if (step === 8) { obstacle('club-door'); item('student-id', 61); item('towel', 79); obstacle('lane-pole', 97); obstacle('panda', 115); }
     }
-    makeObstacle(def, clearance, z = CONFIG.SPAWN_DISTANCE) {
-      return { ...def, kind: 'obstacle', clearance, z, length: Math.max(5, this.speed * 0.36), uid: ++this.serial, failed: false };
+    makeObstacle(def, clearance = def.min, z = CONFIG.SPAWN_DISTANCE) {
+      const rule = def.rule || 'overhead';
+      const arrivalSpeed = this.mode === 'tutorial' ? CONFIG.TUTORIAL_SPEED : speedAt(this.distance + z);
+      const duration = rule === 'jump' ? 0.12 : rule === 'straddle' ? 0.16 : 0.32;
+      return { ...def, rule, kind: 'obstacle', clearance, height: clearance, z, width: def.width || 460,
+        length: arrivalSpeed * duration, uid: ++this.serial, failed: false, completed: false };
     }
     makeItem(def, z = CONFIG.SPAWN_DISTANCE) {
-      return { ...def, kind: 'item', z, height: def.high ? 246 : 201, uid: ++this.serial, collected: false };
+      const min = def.min ?? (def.high ? 305 : 201), max = def.max ?? min;
+      const height = min + Math.floor(this.random() * (max - min + 1));
+      if (height > CONFIG.MAX_REACH || height < 0) throw new RangeError('Item is outside the reachable world');
+      const arrivalSpeed = this.mode === 'tutorial' ? CONFIG.TUTORIAL_SPEED : speedAt(this.distance + z);
+      return { ...def, name: def.name || objectNames[def.object] || 'アイテム', kind: 'item', z, height,
+        high: height > CONFIG.STANDING_REACH, reachDistance: arrivalSpeed * CONFIG.ITEM_REACH_TIME,
+        uid: ++this.serial, collected: false, completed: false };
+    }
+    futureDistance(seconds) {
+      // The speed curve depends only on distance. Integrate it to place events in arrival-time slots.
+      let distance = this.distance;
+      const step = 1 / 60;
+      for (let t = 0; t < seconds - 1e-8; t += step) distance += speedAt(distance) * Math.min(step, seconds - t);
+      return distance;
+    }
+    intervalRange() {
+      if (this.distance < 200) return [2.5, 3.5];
+      if (this.distance < 500) return [1.7, 2.5];
+      return [1.1, 1.8];
+    }
+    actionCost(def) {
+      const jump = def.rule === 'jump' || (def.min ?? 0) > CONFIG.STANDING_REACH;
+      if (jump) return CONFIG.JUMP_STRAIN + CONFIG.STRAIN_RECOVERY_RATE * (2 * CONFIG.JUMP_POWER / CONFIG.GRAVITY);
+      if (def.rule === 'straddle') return (0.16 + CONFIG.ACTION_BUFFER) * (CONFIG.STRADDLE_STRAIN_RATE + CONFIG.STRAIN_RECOVERY_RATE);
+      if (def.rule === 'overhead' && def.min < CONFIG.PASSAGE_HEIGHT) return (0.32 + CONFIG.ACTION_BUFFER) * (CONFIG.CROUCH_STRAIN_RATES[2] + CONFIG.STRAIN_RECOVERY_RATE);
+      return 0;
     }
     spawn() {
-      // Limit streaks, exclude the previous exact event, and keep jump/door windows separated.
-      let kind = this.random() < 0.58 ? 'obstacle' : 'item';
+      const [min, max] = this.intervalRange();
+      const interval = Math.max(min + this.random() * (max - min), 2 * CONFIG.JUMP_POWER / CONFIG.GRAVITY + CONFIG.ACTION_BUFFER);
+      const arrival = Math.max(this.elapsed + CONFIG.MIN_REACTION_TIME, this.planTime + interval);
+      const target = this.futureDistance(arrival - this.elapsed), area = areaAt(target);
+      const forecast = Math.max(0, Math.max(this.planLoad, this.strain) - Math.max(0, arrival - this.planTime) * CONFIG.STRAIN_RECOVERY_RATE);
+      const legal = def => def.id !== this.lastId && def.areas.includes(area.id) && forecast + this.actionCost(def) <= CONFIG.PLANNER_STRAIN_LIMIT;
+      let obstacles = OBSTACLES.filter(legal), items = ITEMS.filter(legal);
+      let kind = this.random() < (area.id === 'park' ? 0.78 : 0.6) ? 'obstacle' : 'item';
       if (this.kindRun >= 3 && kind === this.lastKind) kind = kind === 'item' ? 'obstacle' : 'item';
-      const choices = (kind === 'obstacle' ? OBSTACLES : ITEMS).filter(x => x.id !== this.lastId);
-      const def = choices[Math.floor(this.random() * choices.length)];
-      const event = kind === 'obstacle' ? this.makeObstacle(def, (def.low ? 182 : 189) + Math.floor(this.random() * 6)) : this.makeItem(def);
-      this.events.push(event); this.lastId = def.id;
-      this.kindRun = kind === this.lastKind ? this.kindRun + 1 : 1; this.lastKind = kind;
-      this.spawnTimer += CONFIG.MIN_SPAWN_INTERVAL + this.random() * (CONFIG.MAX_SPAWN_INTERVAL - CONFIG.MIN_SPAWN_INTERVAL);
+      if (!obstacles.length) kind = 'item'; if (!items.length) kind = 'obstacle';
+      const choices = kind === 'obstacle' ? obstacles : items;
+      if (!choices.length) { this.spawnTimer = 0.25; return; } // Defer instead of forcing an exhausting event.
+      const weighted = area.id === 'park' && kind === 'obstacle' ? choices.flatMap(d => ['panda', 'elephant', 'turtle', 'horse'].includes(d.id) ? [d, d, d, d] : [d]) : choices;
+      const def = weighted[Math.floor(this.random() * weighted.length)], z = target - this.distance;
+      const height = def.min === Infinity ? Infinity : def.min + Math.floor(this.random() * (def.max - def.min + 1));
+      const event = kind === 'obstacle' ? this.makeObstacle(def, height, z) : this.makeItem(def, z);
+      event.areaId = area.id; event.arrivalTime = arrival; event.plannedCost = this.actionCost(def);
+      this.events.push(event); this.planTime = arrival; this.planLoad = forecast + event.plannedCost;
+      this.lastId = def.id; this.kindRun = kind === this.lastKind ? this.kindRun + 1 : 1; this.lastKind = kind;
+      // Arrival slots include an entire jump, item window and posture-change margin.
+      this.spawnTimer += interval;
     }
     jump() {
       if (!['playing', 'tutorial'].includes(this.mode) || this.paused || this.jumpY > 0 || this.jumpVelocity > 0) return false;
-      this.crouching = false; this.jumpVelocity = CONFIG.JUMP_POWER;
+      this.crouching = false; this.straddling = false; this.jumpVelocity = CONFIG.JUMP_POWER;
       this.ankleStrain += CONFIG.JUMP_STRAIN;
-      if (this.mode === 'tutorial') { this.tutorial.actions.add('jump'); this.tutorial.jumps++; this.checkLesson(); }
+      if (this.mode === 'tutorial') {
+        this.tutorial.actions.add('jump');
+        if (this.tutorial.step === 7 && this.tutorial.recovered) this.tutorial.actions.add('fatigue-jump');
+        this.checkLesson();
+      }
       else this.checkStrain('jump');
       return true;
     }
     grab() {
       if (!['playing', 'tutorial'].includes(this.mode) || this.paused) return false;
       if (this.mode === 'tutorial') this.tutorial.actions.add('grab');
-      const reachable = this.events.find(e => e.kind === 'item' && !e.collected && Math.abs(e.z) <= this.speed * CONFIG.ITEM_REACH_TIME);
-      const airborne = this.jumpY >= CONFIG.HIGH_ITEM_MIN_JUMP;
-      const valid = reachable && (reachable.high ? airborne : this.jumpY === 0 && this.jumpVelocity === 0 && !this.crouching);
+      const reachable = this.events.find(e => e.kind === 'item' && !e.collected && Math.abs(e.z) <= e.reachDistance);
+      const airborne = this.jumpY > 0;
+      const valid = reachable && !this.crouching && !this.straddling && (reachable.high ? airborne && this.handHeight + CONFIG.REACH_TOLERANCE >= reachable.height : !airborne && this.jumpVelocity === 0);
       if (valid) {
         reachable.collected = true; this.items++; const bonus = reachable.high ? 500 : 300; this.itemScore += bonus;
-        this.effects.push({ type: 'collect', text: '+' + bonus, life: 1, seed: this.random(), high: reachable.high });
-        if (this.mode === 'tutorial' && [4, 5].includes(this.tutorial.step)) this.tutorial.done = true;
-      } else this.effects.push({ type: 'reach', life: 0.25, high: Boolean(reachable?.high) });
+        this.effects.push({ type: 'collect', text: '+' + bonus, life: 1, seed: this.random(), high: reachable.high, height: reachable.height });
+        if (this.mode === 'tutorial') this.lessonPass();
+      } else this.effects.push({ type: 'reach', life: 0.25, high: Boolean(reachable?.high), height: reachable?.height });
       this.checkLesson(); return Boolean(valid);
+    }
+    lessonPass() {
+      this.tutorial.passed++;
+      if (this.tutorial.step !== 8 || this.tutorial.passed === 5) this.tutorial.done = true;
+    }
+    failLesson(message) {
+      this.tutorial.feedback = message; this.tutorial.retry = 1.2; this.events = [];
     }
     checkLesson() {
       if (this.mode !== 'tutorial') return;
       const t = this.tutorial;
-      if (t.step === 0 && ['crouch', 'jump', 'grab'].every(a => t.actions.has(a))) t.done = true;
-      if (t.step === 3) {
-        if (this.strain >= 12) t.peak = true;
-        if (t.peak && !this.crouching && this.strain <= 6) t.done = true;
+      if (t.step === 0 && ['crouch', 'straddle', 'jump', 'grab'].every(a => t.actions.has(a))) t.done = true;
+      if (t.step === 7) {
+        if (this.crouching && this.crouchStrain >= 12) t.peak = true;
+        if (t.peak && !this.crouching && !this.straddling && this.jumpY === 0 && this.strain <= 6) t.recovered = true;
+        if (t.recovered && t.actions.has('fatigue-jump')) t.done = true;
       }
-      if (t.step === 6 && t.jumps >= 3) t.done = true;
     }
     checkStrain(cause) {
       if (this.mode !== 'playing' || this.strain < 100) return;
       this.gameOver(cause === 'jump' || this.ankleStrain > this.crouchStrain ? 'ジャンプのしすぎで足首をねんざしました！' : '体への負担が限界に達しました！');
     }
-    gameOver(reason) { this.reason = reason; this.mode = 'gameover'; this.crouching = false; }
-    update(dt, crouchHeld = false) {
+    gameOver(reason) { this.reason = reason; this.mode = 'gameover'; this.crouching = false; this.straddling = false; }
+    update(dt, crouchHeld = false, straddleHeld = false) {
       if (!['playing', 'tutorial'].includes(this.mode) || this.paused) return;
-      // Consume all elapsed time in bounded physics steps. Swept door checks prevent tunnelling.
       let remaining = Math.max(0, dt);
       while (remaining > 1e-8 && ['playing', 'tutorial'].includes(this.mode)) {
-        const step = Math.min(remaining, CONFIG.FIXED_STEP); this.tick(step, crouchHeld); remaining -= step;
+        const step = Math.min(remaining, CONFIG.FIXED_STEP); this.tick(step, crouchHeld, straddleHeld); remaining -= step;
       }
     }
-    tick(dt, held) {
+    tick(dt, crouchHeld, straddleHeld) {
       this.elapsed += dt;
-      this.speed = this.mode === 'tutorial' ? CONFIG.TUTORIAL_SPEED : Math.min(CONFIG.MAX_SPEED, CONFIG.INITIAL_SPEED + this.distance * CONFIG.SPEED_ACCELERATION);
+      this.speed = this.mode === 'tutorial' ? CONFIG.TUTORIAL_SPEED : speedAt(this.distance);
       this.distance += this.speed * dt;
-      const oldHead = this.headHeight;
+      const oldHead = this.headHeight, oldFoot = this.jumpY;
       if (this.jumpVelocity !== 0 || this.jumpY > 0) {
         this.jumpY = Math.max(0, this.jumpY + this.jumpVelocity * dt - CONFIG.GRAVITY * dt * dt / 2);
         this.jumpVelocity -= CONFIG.GRAVITY * dt;
+        if (this.jumpY < 1e-8 && this.jumpVelocity < 0) this.jumpY = 0;
         if (this.jumpY === 0 && this.jumpVelocity < 0) this.jumpVelocity = 0;
       }
-      this.crouching = held && this.jumpY === 0 && this.jumpVelocity === 0;
+      const grounded = this.jumpY === 0 && this.jumpVelocity === 0;
+      this.crouching = crouchHeld && grounded;
+      this.straddling = !crouchHeld && straddleHeld && grounded;
       if (this.crouching) {
-        this.crouchStrain += CONFIG.CROUCH_STRAIN_RATE * dt;
-        if (this.mode === 'tutorial') this.tutorial.actions.add('crouch');
-      } else if (this.jumpY === 0) this.crouchStrain = Math.max(0, this.crouchStrain - CONFIG.STRAIN_RECOVERY_RATE * dt);
-      this.ankleStrain = Math.max(0, this.ankleStrain - CONFIG.ANKLE_RECOVERY_RATE * dt);
-      if (this.mode === 'tutorial') { this.crouchStrain = Math.min(this.crouchStrain, 65); this.ankleStrain = Math.min(this.ankleStrain, 65); }
-      this.checkStrain(this.crouching ? 'crouch' : 'jump');
+        this.uprightTime = 0; this.crouchEffort += dt;
+        const rate = this.crouchEffort <= CONFIG.CROUCH_STAGE_SECONDS[0] ? CONFIG.CROUCH_STRAIN_RATES[0] : this.crouchEffort <= CONFIG.CROUCH_STAGE_SECONDS[1] ? CONFIG.CROUCH_STRAIN_RATES[1] : CONFIG.CROUCH_STRAIN_RATES[2];
+        this.crouchStrain += rate * dt;
+      } else {
+        if (grounded && !this.straddling) this.uprightTime += dt; else this.uprightTime = 0;
+        this.crouchEffort = Math.max(0, this.crouchEffort - dt * 0.75);
+        if (this.uprightTime >= CONFIG.CROUCH_RESET_SECONDS - 1e-8) this.crouchEffort = 0;
+        if (this.straddling) this.crouchStrain += CONFIG.STRADDLE_STRAIN_RATE * dt;
+      }
+      // One displayed gauge; normal running recovers a total of 6%/s, not 6% per component.
+      let recovery = dt * (grounded && !this.crouching && !this.straddling ? CONFIG.STRAIN_RECOVERY_RATE : CONFIG.ANKLE_RECOVERY_RATE);
+      const ankleRecovery = Math.min(this.ankleStrain, recovery); this.ankleStrain -= ankleRecovery; recovery -= ankleRecovery;
+      if (grounded && !this.crouching && !this.straddling) this.crouchStrain = Math.max(0, this.crouchStrain - recovery);
+      if (this.mode === 'tutorial') {
+        this.crouchStrain = Math.min(this.crouchStrain, 65); this.ankleStrain = Math.min(this.ankleStrain, 65);
+        if (this.crouching) this.tutorial.actions.add('crouch');
+        if (this.straddling) this.tutorial.actions.add('straddle');
+      }
+      this.checkStrain(this.crouching || this.straddling ? 'posture' : 'jump');
       if (this.mode === 'gameover') return;
       for (const event of this.events) {
         const oldZ = event.z; event.z -= this.speed * dt;
         if (event.kind === 'obstacle' && oldZ >= -event.length && event.z <= 0) {
-          // Only use the previous head when the door was already occupied. A timely crouch at entry counts.
           const head = oldZ <= 0 ? Math.max(oldHead, this.headHeight) : this.headHeight;
-          if (head > event.clearance) {
+          const foot = oldZ <= 0 ? Math.min(oldFoot, this.jumpY) : this.jumpY;
+          const valid = event.rule === 'open' || (event.rule === 'overhead' ? head <= event.clearance :
+            event.rule === 'straddle' ? this.straddling && event.height <= CONFIG.INSEAM * 0.85 && event.width <= CONFIG.MAX_STRADDLE_WIDTH : foot >= event.height);
+          if (!valid) {
             event.failed = true;
-            if (this.mode === 'playing') { this.gameOver('入口に頭をぶつけました！'); return; }
-            this.tutorial.feedback = 'もう一度！入口を抜けるまで姿勢を保ちましょう。';
+            if (this.mode === 'playing') { this.gameOver(event.rule === 'overhead' ? event.name + 'に頭をぶつけました！' : event.name + 'にぶつかりました！'); return; }
+            this.failLesson('もう一度！タイミングと姿勢を確かめましょう。'); break;
           }
-          if (this.mode === 'tutorial' && this.tutorial.step === 1 && (this.crouching || this.jumpY > 0)) event.failed = true;
+          if (this.mode === 'tutorial' && this.tutorial.step === 1 && (this.crouching || this.straddling || this.jumpY > 0)) event.failed = true;
         }
-        if (event.kind === 'obstacle' && oldZ >= -event.length && event.z < -event.length && this.mode === 'tutorial') {
-          if (!event.failed) this.tutorial.done = true;
-          else this.tutorial.retry = 1.2;
+        if (event.kind === 'obstacle' && !event.completed && oldZ >= -event.length && event.z < -event.length) {
+          event.completed = true; this.completedEvents++;
+          if (this.mode === 'tutorial') {
+            if (!event.failed) this.lessonPass();
+            else { this.failLesson('立ったまま通過してみましょう。'); break; }
+          }
         }
-        if (event.kind === 'item' && oldZ >= -this.speed * CONFIG.ITEM_REACH_TIME && event.z < -this.speed * CONFIG.ITEM_REACH_TIME && this.mode === 'tutorial' && !event.collected) {
-          this.tutorial.feedback = '取り逃がしても大丈夫。次のアイテムで試しましょう。'; this.tutorial.retry = 1.2;
+        if (event.kind === 'item' && !event.completed && event.z < -event.reachDistance) {
+          event.completed = true; this.completedEvents++;
+          if (!event.collected) {
+            if (this.mode === 'playing') { this.gameOver(event.name + 'を取り逃がしました！'); return; }
+            this.failLesson('取り逃がしても大丈夫。近づいたらEを押しましょう。'); break;
+          }
         }
       }
-      this.events = this.events.filter(e => e.z > -(e.length || 12) - 12);
+      this.events = this.events.filter(e => e.z > -(e.length || e.reachDistance || 12) - 12);
       for (const fx of this.effects) fx.life -= dt;
       this.effects = this.effects.filter(fx => fx.life > 0);
       if (this.mode === 'playing') { this.spawnTimer -= dt; if (this.spawnTimer <= 0) this.spawn(); }
       else {
         if (this.tutorial.retry > 0) {
           this.tutorial.retry -= dt;
-          if (this.tutorial.retry <= 0 && !this.tutorial.done) { this.events = []; this.spawnLessonEvent(); }
+          if (this.tutorial.retry <= 0 && !this.tutorial.done) this.setupLesson();
         }
         this.checkLesson();
       }
     }
   }
-  const api = { CONFIG, OBSTACLES, ITEMS, LESSONS, GameModel };
+  const api = { CONFIG, OBSTACLES, ITEMS, LESSONS, AREAS, SPEED_POINTS, speedAt, areaAt, GameModel };
   if (typeof module !== 'undefined' && module.exports) module.exports = api;
   else root.Run188 = api;
 })(typeof globalThis !== 'undefined' ? globalThis : this);

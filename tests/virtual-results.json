@@ -1,0 +1,21 @@
+{
+  "seeds": 50,
+  "eventsPassed": 100000,
+  "totalDistance": 8287164,
+  "maxStrain": 20.07,
+  "uniqueEvents": 57,
+  "areas": [
+    "street",
+    "school",
+    "station",
+    "bus",
+    "store",
+    "park",
+    "home"
+  ],
+  "fps": [
+    30,
+    60,
+    120
+  ]
+}
