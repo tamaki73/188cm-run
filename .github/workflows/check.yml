@@ -56,4 +56,5 @@ jobs:
           node tests/visual-scroll.cjs
           node tests/glass-browser.cjs
           node tests/audio-browser.cjs
+          node tests/menu-browser.cjs
           npm run test:online

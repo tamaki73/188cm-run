@@ -12,6 +12,7 @@
 <body>
   <main class="shell">
     <header class="masthead"><a class="wordmark" href="#" id="home-link">188<span>cm</span> RUN<span class="logo-dot">.</span></a><div class="edition">日常を、走り抜けろ。<span>身長188cmのランゲーム</span></div></header>
+    <div id="play-layout" class="play-layout">
     <div class="instruction-area">
       <section class="tutorial-panel" id="tutorial-panel" hidden aria-label="チュートリアル">
         <div class="lesson-heading"><span class="eyebrow">チュートリアル <b id="lesson-step">1 / 9</b></span><button class="text-button" id="lesson-title-button">タイトルへ</button></div>
@@ -32,7 +33,7 @@
       <div class="scene-meta"><span id="mode-label">街を走る、あなたの物語。</span><span>身長 <b>188</b> cm</span></div>
       <button class="pause-button" id="pause-button" aria-label="一時停止" hidden>Ⅱ</button>
       <section class="overlay" id="title-panel" hidden>
-        <div class="title-card"><span class="eyebrow">頭上に、気をつけて。</span><h1>188<span>cm</span><br>RUN<span class="lime">.</span></h1><p>いつもの入口。少し高い目線。<br>その一瞬の判断が、走りを変える。</p><button class="primary" id="start-button">走り出す <span>→</span></button><button class="text-button" id="tutorial-button">チュートリアルで練習する</button><button class="text-button ranking-open">友達とのランキングを見る</button><div class="distance-best"></div><div class="best">スコア自己ベスト <strong id="best-score">0</strong></div></div>
+        <div class="title-card"><span class="eyebrow">頭上に、気をつけて。</span><h1>188<span>cm</span><br>RUN<span class="lime">.</span></h1><p>いつもの入口。少し高い目線。<br>その一瞬の判断が、走りを変える。</p><button class="primary" id="start-button">走り出す <span>→</span></button><button class="text-button" id="tutorial-button">チュートリアルで練習する</button><div class="title-actions"><button class="text-button ranking-open">友達とのランキングを見る</button><button class="text-button settings-open">設定</button></div><div class="distance-best"></div><div class="best">スコア自己ベスト <strong id="best-score">0</strong></div></div>
       </section>
       <section class="overlay" id="over-panel" hidden>
         <div class="result-card"><span class="eyebrow">おつかれさまでした</span><h2>GAME OVER<span class="lime">.</span></h2><p id="over-reason" role="alert"></p><div class="result-score"><span>最終スコア</span><strong id="final-score">0</strong></div><div class="result-details"><span>走行距離 <b id="final-distance">0 m</b></span><span>アイテム <b id="final-items">0 個</b></span></div><div class="understanding"><span id="final-understanding">高身長への理解度：0％</span><div class="track" role="progressbar" aria-label="高身長への理解度" aria-valuemin="0" aria-valuemax="100" id="understanding-track"><i id="understanding-bar"></i></div></div><p id="save-status" role="status"></p><button class="text-button ranking-open">友達とのランキングを見る</button><button id="restart-button" class="primary">もう一度走る <kbd>Enter</kbd></button><button id="back-button" class="text-button">タイトルへ戻る</button></div>
@@ -45,15 +46,16 @@
     <section id="tutorial-actions" class="tutorial-actions" hidden aria-label="チュートリアルの進行"><div class="lesson-bottom"><span id="lesson-feedback" role="status"></span><button class="primary compact" id="next-button" disabled>次へ →</button></div>
         <div class="skip-row"><label><input type="checkbox" id="skip-checkbox"> 次回からチュートリアルを表示しない</label><button id="skip-button" class="text-button" disabled>チュートリアルをスキップ</button></div>
     </section>
-    <footer class="controls"><div><kbd>↓</kbd><span> / </span><kbd>Shift</kbd><span> 長押しでしゃがむ</span></div><div><kbd>S</kbd><span> 長押しでまたぐ</span></div><div><kbd>Space</kbd><span> ジャンプ</span></div><div><kbd>E</kbd><span> アイテム取得</span></div><div><kbd>Esc</kbd><span> 一時停止</span></div><button class="text-button" id="sound-button" aria-pressed="false">音：オフ</button><button class="text-button" id="settings-button">設定</button><button class="text-button" id="effects-button" aria-pressed="false">演出：通常</button></footer>
+    </div>
+    <footer class="controls"><div><kbd>↓</kbd><span> / </span><kbd>Shift</kbd><span> 長押しでしゃがむ</span></div><div><kbd>S</kbd><span> 長押しでまたぐ</span></div><div><kbd>Space</kbd><span> ジャンプ</span></div><div><kbd>E</kbd><span> アイテム取得</span></div><div><kbd>Esc</kbd><span> 一時停止</span></div><button class="text-button" id="sound-button" aria-pressed="true">音：オン</button><button class="text-button settings-open" id="settings-button">設定</button><button class="text-button" id="effects-button" aria-pressed="false">演出：通常</button></footer>
     <p class="footnote">アイテムは近づいてE。取り逃がすと終了します。<span>病名・負荷・身体能力はゲーム内の演出です。遊具や標識への現実の行動は勧めません。</span></p>
 
   </main>
   <dialog id="settings-dialog" aria-labelledby="settings-title">
     <div class="ranking-heading"><h2 id="settings-title">設定</h2><button id="settings-close" class="text-button">閉じる ×</button></div>
     <label class="sound-toggle"><span>効果音</span><input id="sound-toggle" type="checkbox"> オン</label>
-    <label class="volume-label" for="sound-volume">効果音の音量 <output id="sound-volume-value" for="sound-volume">30％</output></label>
-    <input id="sound-volume" type="range" min="0" max="100" step="1" value="30">
+    <label class="volume-label" for="sound-volume">効果音の音量 <output id="sound-volume-value" for="sound-volume">40％</output></label>
+    <input id="sound-volume" type="range" min="0" max="100" step="1" value="40">
     <p class="ranking-note">設定はこのブラウザに保存されます。ゲーム中に開くと一時停止します。</p>
     <p id="sound-status" class="ranking-note" role="status"></p>
   </dialog>

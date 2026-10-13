@@ -2,6 +2,10 @@
 
 2026年10月13日。Node.js / Python / Chromium / Playwrightを使用。ゲーム本体とFirebase未設定時の挙動をローカルで確認し、Firebaseの実ルール・複数ブラウザ共有もGitHub Actionsのローカルエミュレーターで成功を確認しました。プロジェクト `cm-run` の本番用Web設定は反映済みです。本番接続はこの環境の通信制限により未確認です。
 
+## 最新のタイトル・説明・音声修正
+
+[MENU_SOUND_REPORT.md](MENU_SOUND_REPORT.md)にご指定12項目と未確認事項をまとめています。`tests/menu-browser.cjs`を既存のCIへ追加しました。前のレイアウトテストは上配置または左配置の非重複を確認するよう更新し、警告音の計測テストは明示的OFFの独立した保存領域で音声を初期化しています。
+
 ## 追加修正20〜22の確認
 
 [AUDIO_UPDATE_REPORT.md](AUDIO_UPDATE_REPORT.md)に追加15項目の結果、参考の描画計測、PC/スマートフォン画像をまとめています。`tests/audio.test.cjs`は接地周期・空中停止・着地・取得・姿勢変化・終了原因を検証し、`tests/audio-browser.cjs`は実AudioContext、タッチ、設定保存、6音上限と実波形、5種類の画面サイズを検証します。Safariや実機のスピーカー聴感は未確認です。

@@ -57,19 +57,27 @@ canvas { display: block; width: 100%; height: auto; aspect-ratio: 960/680; }
     backdrop-filter: blur(12px);
   }
 }
-.title-card { margin-right: 37%; width: 390px; padding: 26px 28px; }
+.title-card { margin: 0; width: 300px; max-height: 100%; overflow: auto; padding: 16px 20px; background: linear-gradient(135deg,#31202ac9,#151218d9); }
+#title-panel { justify-content: flex-start; padding: 20px; background: linear-gradient(90deg,#0c080c70,transparent 48%); }
+.title-card h1 { font-size: 70px; line-height: .9; margin: 8px 0; }
+.title-card h1>span:first-child { font-size: 24px; }
+.title-card>.primary { padding: 11px 13px; }
+.title-actions { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+.title-actions .text-button { font-size: 12px; padding: 8px 0; min-width: 44px; min-height: 40px; }
+.title-card .best { margin-top: 6px; }
+.play-layout { display: grid; grid-template-columns: minmax(0,1fr); }
 .eyebrow { font-size: 11px; letter-spacing: 2px; color: #e9a7bc; }
 h1 { font: 900 99px/.89 Arial,sans-serif; letter-spacing: -6px; margin: 21px 0; }
 h1>span:first-child { font-size: 30px; letter-spacing: -2px; }
 h1 .lime { letter-spacing: -3px; }
 .lime { color: var(--highlight); }
-.title-card p { font-size: 12px; line-height: 1.9; color: #dccdd5; margin: 17px 0 22px; }
+.title-card p { font-size: 12px; line-height: 1.65; color: #e6d6df; margin: 8px 0 12px; }
 .primary { border: 1px solid #d76a892e; border-radius: 8px; background: linear-gradient(135deg,#ad2e50,#800020); color: #fff4f7; display: flex; align-items: center; justify-content: space-between; width: 100%; padding: 13px 17px; font-weight: 700; box-shadow: inset 0 1px 0 #ffcddd18,0 5px 17px #31000d40; transition: background .16s,box-shadow .16s; }
 .primary:hover:not(:disabled) { background: linear-gradient(135deg,#bc4563,#921b3a); box-shadow: inset 0 1px 0 #ffe1ee35,0 5px 17px #31000d60; }
 .primary span { font-size: 20px; }
 .text-button { display: inline-block; border: 0; background: transparent; color: #d3bfc8; font-size: 11px; padding: 10px 0; }
 .text-button:hover:not(:disabled) { color: #fff1f6; }
-.title-card>.text-button { width: 100%; margin-top: 4px; }
+.title-card>.text-button { width: 100%; margin-top: 2px; font-size: 12px; padding: 8px 0; }
 .best { margin-top: 9px; font-size: 10px; color: var(--muted); }
 .best strong { color: #ede0e6; margin-left: 10px; font: 14px monospace; }
 .distance-best { font-size: 11px; color: #e3cad6; line-height: 1.9; }
@@ -183,9 +191,12 @@ body.reduced-effects .title-card,body.reduced-effects .result-card,body.reduced-
   .footnote { display: block; }
   .footnote span { display: block; margin: 3px 0 0; }
   .overlay:not(.pause-overlay) { position: relative; inset: auto; width: 100%; max-width: none; padding: 13px; border-radius: 0; }
-  .title-card { width: 100%; max-width: none; margin: 0; padding: 20px; }
-  .title-card h1 { font-size: 68px; line-height: .92; margin: 14px 0; }
-  .title-card p { font-size: 12px; margin: 13px 0; }
+  .title-card { width: min(280px,100%); max-width: none; margin: 0 auto; padding: 14px 18px; }
+  #title-panel { padding: 10px; }
+  .title-card h1 { font-size: 54px; line-height: .92; margin: 6px 0; }
+  .title-card h1 br { display: none; }
+  .title-card h1>span:first-child { margin-right: 8px; }
+  .title-card p { font-size: 12px; margin: 8px 0; }
   .title-card>.text-button { margin-top: 0; }
   .result-card { width: 100%; max-height: none; padding: 19px; }
   .result-card h2 { font-size: 28px; }
@@ -217,3 +228,17 @@ body.reduced-effects .title-card,body.reduced-effects .result-card,body.reduced-
 
 @media (max-height: 600px) and (min-width: 701px) { .shell { max-width: min(960px,100%); } }
 @media (pointer: coarse) { .touch-controls { display: flex; } }
+
+@media (min-width: 1280px) {
+  .shell.tutorial-layout { max-width: min(1680px,calc((100svh - 230px) * 1.411765 + 234px)); }
+  .tutorial-layout .play-layout { grid-template-columns: 220px minmax(0,1fr); column-gap: 14px; align-items: start; }
+  .tutorial-layout .instruction-area { grid-column: 1; grid-row: 1; height: auto; margin-bottom: 0; }
+  .tutorial-layout .tutorial-panel { height: auto; padding: 12px 14px; }
+  .tutorial-layout .lesson-heading { align-items: start; gap: 10px; flex-wrap: wrap; }
+  .tutorial-layout .lesson-heading b { margin-left: 7px; }
+  .tutorial-layout .tutorial-panel h2 { font-size: 16px; line-height: 1.6; }
+  .tutorial-layout #game { grid-column: 2; grid-row: 1; }
+  .tutorial-layout .touch-controls,.tutorial-layout .tutorial-actions { grid-column: 2; }
+}
+
+.play-layout[data-mode=title] .touch-controls,.play-layout[data-mode=gameover] .touch-controls { display: none; }

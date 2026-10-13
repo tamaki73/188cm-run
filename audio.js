@@ -9,31 +9,46 @@
   class Sound {
     constructor(storage) {
       this.storage = storage;
-      this.enabled = storage.get('soundEnabled', 'false') === 'true';
-      const volume = Number(storage.get('soundVolume', '0.3'));
-      this.volume = Number.isFinite(volume) ? Math.max(0, Math.min(1, volume)) : 0.3;
+      this.enabled = storage.get('soundEnabled', 'true') !== 'false';
+      const savedVolume = storage.get('soundVolume', '0.4');
+      const volume = savedVolume.trim() === '' ? NaN : Number(savedVolume);
+      this.volume = Number.isFinite(volume) ? Math.max(0, Math.min(1, volume)) : 0.4;
       this.context = null; this.voices = new Set(); this.lastUI = -Infinity;
-      this.error = ''; this.onPlay = null;
+      this.error = ''; this.onPlay = null; this.onStateChange = null;
+      this.resumePromise = null; this.pending = [];
     }
     unlock() {
       // Called only by a user gesture; simulation and page load never create audio.
-      if (!this.enabled) return;
-      this.error = '';
+      if (!this.enabled) return Promise.resolve(false);
+      if (!this.resumePromise) this.error = '';
+      if (this.context?.state === 'closed') { this.stopAll(); this.context = null; this.resumePromise = null; }
       try {
         if (!this.context) {
           const Audio = window.AudioContext || window.webkitAudioContext;
-          if (!Audio) { this.error = 'このブラウザでは効果音を利用できません。'; return; }
-          this.context = new Audio();
+          if (!Audio) { this.error = 'このブラウザでは効果音を利用できません。'; this.onStateChange?.(); return Promise.resolve(false); }
+          this.context = new Audio(); this.lastUI = -Infinity;
           this.master = this.context.createGain(); this.master.gain.value = this.volume * 0.75;
           this.master.connect(this.context.destination);
           this.noise = this.context.createBuffer(1, Math.ceil(this.context.sampleRate * 0.24), this.context.sampleRate);
           const samples = this.noise.getChannelData(0);
           for (let i = 0; i < samples.length; i++) samples[i] = Math.random() * 2 - 1;
         }
-        if (this.context.state !== 'running') this.context.resume().catch(() => {
-          this.stopAll(); this.error = '音を有効にするには、効果音をオフにしてからもう一度オンにしてください。';
-        });
-      } catch { this.error = '効果音を開始できませんでした。ゲームはそのまま遊べます。'; }
+        if (this.context.state === 'running') { this.error = ''; return Promise.resolve(true); }
+        if (!this.resumePromise) {
+          this.resumePromise = this.context.resume().then(() => {
+            if (this.context.state !== 'running') throw new Error('Audio not running');
+            this.error = '';
+            const pending = this.pending.splice(0);
+            for (const event of pending) if (event.detail.confirmation || Date.now() - event.at < 250) this.play(event.name, event.detail);
+            this.onStateChange?.();
+            return true;
+          }).catch(() => {
+            this.stopAll(); this.error = '音を有効にするには、効果音をオフにしてからもう一度オンにしてください。';
+            this.onStateChange?.(); return false;
+          }).finally(() => { this.resumePromise = null; });
+        }
+        return this.resumePromise;
+      } catch { this.error = '効果音を開始できませんでした。ゲームはそのまま遊べます。'; this.onStateChange?.(); return Promise.resolve(false); }
     }
     setEnabled(value) {
       this.enabled = Boolean(value); this.storage.set('soundEnabled', this.enabled);
@@ -45,11 +60,22 @@
       if (this.master) this.master.gain.setTargetAtTime(this.volume * 0.75, this.context.currentTime, 0.015);
       if (!this.volume) this.stopAll();
     }
-    stopAll() { for (const voice of [...this.voices]) voice.stop(); }
-    stopMovement() { for (const voice of [...this.voices]) if (voice.name !== 'ui') voice.stop(); }
+    stopAll() { this.pending.length = 0; for (const voice of [...this.voices]) voice.stop(); }
+    stopMovement() {
+      this.pending = this.pending.filter(event => event.name === 'ui');
+      for (const voice of [...this.voices]) if (voice.name !== 'ui') voice.stop();
+    }
     play(name, detail = {}) {
       const c = this.context;
       if (!this.enabled || !this.volume || !c || c.state === 'closed' || this.error) return false;
+      if (c.state !== 'running' && typeof c.startRendering !== 'function') {
+        // Short first-gesture effects wait for resume; never accumulate a backlog.
+        if (this.resumePromise) {
+          if (name === 'foot') this.pending = this.pending.filter(event => event.name !== 'foot');
+          if (this.pending.length < MAX_VOICES) this.pending.push({ name, detail, at: Date.now() });
+        }
+        return false;
+      }
       const now = c.currentTime;
       if (name === 'ui' && now - this.lastUI < 0.07) return false;
       if (name === 'foot' && [...this.voices].some(v => v.name === 'foot')) return false;
@@ -60,19 +86,20 @@
       }
       let duration = 0.10, frequency = 180, end = 70, level = 0.08, noise = 0.025, cutoff = 900;
       switch (name) {
-        case 'foot': duration = 0.065; frequency = detail.foot === 'left' ? 100 : 112; end = 55;
-          level = detail.straddling ? 0.025 : detail.crouching ? 0.035 : 0.05; noise = level * 0.55; cutoff = 650; break;
-        case 'jump': duration = 0.12; frequency = 190; end = 330; level = 0.09; noise = 0.025; break;
-        case 'land': duration = 0.14; frequency = 90; end = 42; level = 0.10; noise = 0.045; cutoff = 700; break;
+        case 'foot': duration = 0.09; frequency = detail.foot === 'left' ? 160 : 178; end = 100;
+          level = detail.straddling ? 0.07 : detail.crouching ? 0.09 : 0.13; noise = level * 0.38; cutoff = 1900; break;
+        case 'jump': duration = 0.12; frequency = 190; end = 330; level = 0.14; noise = 0.035; break;
+        case 'land': duration = 0.14; frequency = 150; end = 72; level = 0.13; noise = 0.05; cutoff = 1300; break;
         case 'crouch': case 'straddle': case 'stand': duration = name === 'stand' ? 0.06 : 0.11;
-          level = 0; noise = name === 'stand' ? 0.025 : 0.045; cutoff = name === 'straddle' ? 1300 : 1800; break;
+          level = 0; noise = name === 'stand' ? 0.045 : 0.08; cutoff = name === 'straddle' ? 1600 : 1800; break;
         case 'collect': duration = 0.22; frequency = detail.high ? 1046 : 880;
-          end = detail.high ? 1568 : 1320; level = 0.09; noise = 0; break;
+          end = detail.high ? 1568 : 1320; level = 0.16; noise = 0; break;
         case 'collision': duration = 0.17; frequency = 105; end = 44; level = 0.11; noise = 0.065; break;
         case 'over': duration = 0.43; frequency = detail.cause === 'fatigue' ? 220 : detail.cause === 'collision' ? 105 : 260;
           end = 65; level = 0.12; noise = detail.cause === 'collision' ? 0.065 : 0; break;
         case 'alarm': duration = 0.10; frequency = 620; end = 620; level = 0.025; noise = 0; break;
-        case 'ui': duration = 0.055; frequency = 540; end = 370; level = 0.05; noise = 0; break;
+        case 'ui': duration = detail.confirmation ? 0.12 : 0.07; frequency = detail.confirmation ? 660 : 540;
+          end = detail.confirmation ? 880 : 370; level = 0.10; noise = 0; break;
         default: return false;
       }
       const sources = [], nodes = [];

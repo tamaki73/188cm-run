@@ -17,13 +17,13 @@ const url=(process.env.GAME_TEST_URL||'http://127.0.0.1:8000/')+'?test';
       for(let step=0;step<9;step++) {
         await page.evaluate(step=>{const t=__RUN188_TEST__;t.model.paused=true;t.model.tutorial.step=step;t.model.setupLesson();t.syncUI();t.draw();},step);
         const panel=await page.locator('#tutorial-panel').boundingBox(),canvas=await page.locator('#canvas').boundingBox(),text=await page.locator('#lesson-text').boundingBox();
-        assert.ok(panel.y+panel.height<=canvas.y);assert.ok(text.y+text.height<=panel.y+panel.height);
+        assert.ok(panel.x+panel.width<=canvas.x||panel.y+panel.height<=canvas.y);assert.ok(text.y+text.height<=panel.y+panel.height);
         assert.equal(canvas.y,initialBox.y);assert.equal(canvas.height,initialBox.height);
         assert.ok(await page.locator('#lesson-text').evaluate(e=>parseFloat(getComputedStyle(e).fontSize)>=12));
         if(step===2){assert.equal(await page.locator('#lesson-text').innerText(),'↓キーまたはShiftキーを押してしゃがみます。完全に障害物が消えるまでしゃがみ続けてください。');await page.screenshot({path:`work/tutorial-${mobile?'mobile':'desktop'}.png`,fullPage:true,scale:'css'});}
       }
       await page.evaluate(()=>{const t=__RUN188_TEST__;t.model.title();t.syncUI();});
-      assert.equal((await page.locator('#canvas').boundingBox()).y,initialBox.y);
+      // Desktop changes to/from the requested sidebar; lesson-to-lesson bounds stay fixed.
       assert.ok(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth));
       assert.equal(await page.evaluate(()=>__RUN188_TEST__.sound.context),null);
       await page.locator('#settings-button').click();assert.equal(await page.locator('#settings-dialog').isVisible(),true);
@@ -107,7 +107,7 @@ const url=(process.env.GAME_TEST_URL||'http://127.0.0.1:8000/')+'?test';
       for(let step=0;step<9;step++) {
         await page.evaluate(step=>{const t=__RUN188_TEST__;t.model.startTutorial();t.model.paused=true;t.model.tutorial.step=step;t.model.setupLesson();t.syncUI();},step);
         const panel=await page.locator('#tutorial-panel').boundingBox(),text=await page.locator('#lesson-text').boundingBox(),canvas=await page.locator('#canvas').boundingBox();
-        assert.ok(text.y+text.height<=panel.y+panel.height);assert.ok(panel.y+panel.height<=canvas.y);
+        assert.ok(text.y+text.height<=panel.y+panel.height);assert.ok(panel.x+panel.width<=canvas.x||panel.y+panel.height<=canvas.y);
         assert.ok(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth));
       }
     }
