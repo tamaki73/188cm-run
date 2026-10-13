@@ -35,6 +35,22 @@ const {chromium}=require('playwright'),assert=require('node:assert/strict');
   console.log('PASS: fixed-length straight low/high arms, nickname onboarding/persistence, continuous ground/fixture/area wrap, bounded background cache; measured',JSON.stringify(stats));
   await page.evaluate(()=>__RUN188_TEST__.openRanking());assert.match(await page.locator('#ranking-status').innerText(),/未設定/);
   await page.locator('#nickname').fill('<img src=x onerror=alert(1)>');await page.locator('#nickname-form button').click();assert.match(await page.locator('#nickname-error').innerText(),/1〜16/);
+  await page.locator('#ranking-close').click();
+  await page.evaluate(()=>{
+    const t=__RUN188_TEST__,r=t.ranking,g=t.model;
+    r.config={season:'season-1',firebase:{apiKey:'test',projectId:'demo',appId:'test'}};
+    r.adapter={save:()=>new Promise(resolve=>window.__saveResolve=resolve)};
+    r.lastSend=-Infinity;g.start();t.syncUI();g.distance=100;g.elapsed=10;g.gameOver('遅延通信');t.syncUI();
+  });
+  await page.waitForFunction(()=>Boolean(window.__saveResolve));
+  await page.evaluate(()=>{const t=__RUN188_TEST__,g=t.model;g.start();t.syncUI();g.distance=200;g.elapsed=20;g.gameOver('次の走行');t.syncUI();});
+  await page.waitForFunction(()=>document.getElementById('save-status').textContent.includes('確認できません'));
+  await page.evaluate(()=>window.__saveResolve({distance:100,changed:true}));
+  await page.waitForFunction(()=>!__RUN188_TEST__.ranking.busy);
+  assert.equal(await page.evaluate(()=>__RUN188_TEST__.ranking.pending),200);
+  assert.match(await page.locator('#save-status').innerText(),/確認できません/);
+  assert.doesNotMatch(await page.locator('#save-status').innerText(),/保存しました/);
+  console.log('PASS: a delayed previous-run response never reports a newer unsent record as saved');
   assert.deepEqual(errors,[]);
  }finally{await browser.close();}
 })().catch(e=>{console.error(e);process.exitCode=1});

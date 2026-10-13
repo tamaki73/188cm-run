@@ -17,7 +17,7 @@
   let lastTime = null, uiMode = '', lessonIndex = -1, soundEnabled = false, audioContext;
   let resumeAt = 0, touchCrouch = false, touchStraddle = false, lastItems = 0, ambientTime = 0;
   let reducedEffects = storage.get('reducedEffects', String(matchMedia('(prefers-reduced-motion: reduce)').matches)) === 'true';
-  let lastWarningAt = -Infinity;
+  let lastWarningAt = -Infinity, resultVersion = 0;
   const W = 960, H = 680, CX = 480, HORIZON = 246, GROUND = 636, CM = 1.38;
 
   function focusGame() { game.focus({ preventScroll: true }); $('focus-tip').hidden = true; }
@@ -126,16 +126,19 @@
     activate(() => model.start());
   }
   async function sendRecord() {
+    const version = resultVersion;
     $('save-status').textContent = 'オンラインに記録を送信中…';
     $('ranking-send').disabled = true;
     try {
       const result = await ranking.send();
-      const text = result.changed ? 'オンラインに自己ベストを保存しました。' : 'オンラインの自己ベストを確認しました。';
-      $('save-status').textContent = text; $('ranking-status').textContent = text; updateDistanceBest();
+      const text = ranking.pending !== null ? '前の記録の送信が完了しました。最新の記録は未送信です。60秒後に再送信してください。' : result.changed ? 'オンラインに自己ベストを保存しました。' : 'オンラインの自己ベストを確認しました。';
+      if (version === resultVersion) $('save-status').textContent = text;
+      $('ranking-status').textContent = text; updateDistanceBest();
     } catch (e) {
       const text = 'オンライン保存を確認できませんでした。' + onlineError(e) + ' 記録はこの端末に残っています。';
-      $('save-status').textContent = text; $('ranking-status').textContent = text;
-    } finally { $('ranking-send').disabled = false; }
+      if (version === resultVersion) $('save-status').textContent = text;
+      $('ranking-status').textContent = text;
+    } finally { $('ranking-send').disabled = ranking.busy; }
   }
   function onlineError(e) {
     if (e.code === 'permission-denied' || e.code === 'firestore/permission-denied') return '送信間隔（60秒）・アクセス設定を確認し、後で再送信してください。';
@@ -196,6 +199,7 @@
     const active = ['playing', 'tutorial'].includes(model.mode);
     if (uiMode !== model.mode) {
       if (model.mode === 'gameover') {
+        resultVersion++; $('save-status').textContent = '記録が範囲外のため、オンラインに送信しませんでした。';
         best = Math.max(best, model.score); storage.set('best', best); tone(120, 0.45, 'triangle');
         $('over-reason').textContent = model.reason;
         $('final-score').textContent = model.score.toLocaleString('ja-JP');
