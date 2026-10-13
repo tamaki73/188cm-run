@@ -2,7 +2,7 @@
 
 身長188cmの高校生・大学生として、日常の不便さと身体能力を体験するランゲームです。既存のCanvasゲームを拡張し、通学路、学校・大学、電車・駅、路線バス、コンビニ・スーパー、公園、自宅の7エリアを走ります。頭上と足元を見て、しゃがみ・またぎ・ジャンプ・取得を使い分けてください。
 
-黒とバーガンディのガラス風UIで、広いゲーム画面と2両の立体ミニ電車を採用しています。今回の変更とレビュー用画像は [統合アップデート報告](UPDATE_REPORT.md) を参照してください。
+黒とバーガンディのガラス風UIで、広いゲーム画面と2両の立体ミニ電車を採用しています。前回の変更は [統合アップデート報告](UPDATE_REPORT.md)、追加の説明欄・効果音と検証画像は [追加修正20〜22](AUDIO_UPDATE_REPORT.md) を参照してください。
 
 ゲーム本体はHTML・CSS・JavaScriptだけで動き、外部画像・APIキーは不要です。任意のオンラインランキングのみFirebase Web SDK（13.0.0）とFirebaseの無料プロジェクト設定を使用します。**Firebaseプロジェクト `cm-run` のWeb設定は反映済みです。公開後の本番ランキング動作は未確認です。[初心者向けの設定手順](ONLINE_SETUP.md)をご覧ください。**
 
@@ -13,6 +13,8 @@
 **https://tamaki73.github.io/188cm-run/**
 
 初回は9ステップのチュートリアルが自動で始まります。画面を一度クリックして、キーボードを操作してください。
+
+説明はゲーム画面の上に表示されます。効果音は「音：オフ」を押すとオンになります。「設定」で音量を調整でき、次回も設定を引き継ぎます（初期音量30％）。設定をゲーム中に開くと一時停止するので、閉じた後に「ゲームに戻る」を押してください。
 
 ## Google Colabで遊ぶ
 
@@ -128,7 +130,8 @@ PCでは余白を減らし、画面の高さも考慮して最大1440pxまで広
 | `index.html` | 日本語UI、画面、ボタン |
 | `style.css` | レイアウト、デザイン、レスポンシブ表示 |
 | `game-engine.js` | 状態、物理、負荷、イベント、衝突、チュートリアル |
-| `game.js` | Canvas描画、入力、フォーカス、一時停止、音 |
+| `game.js` | Canvas描画、入力、フォーカス、一時停止、設定 |
+| `audio.js` | Web Audio APIによるオリジナルの効果音と音量管理 |
 | `188cm_RUN.ipynb` | 完成版を内包するColabノートブック |
 | `colab_cells.py` | 同じ内容を3セルとして貼り付けられるPythonコード |
 | `tools/build_colab.py` | ゲームのソースからColab用成果物を再生成 |
@@ -149,11 +152,14 @@ python3 -m http.server 8000
 ```sh
 node --check game-engine.js
 node --check game.js
-node tests/engine.test.js
+node --check audio.js
+npm test
 node tests/virtual-player.cjs
 python3 tools/build_colab.py
 python3 tests/colab_test.py
 ```
+
+`node tests/audio-browser.cjs` は説明欄の非重複、発音イベント、ミュート・音量の保存、実Web Audio波形と最大同時数を確認します。
 
 `node tests/final-browser.cjs` はカメラ、単一のイベント名、警告と演出設定、E予約、原因別メッセージを追加検証します。
 

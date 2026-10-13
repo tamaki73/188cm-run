@@ -14,8 +14,9 @@
   const ranking = new Run188Ranking.Ranking(window.RUN188_ONLINE_CONFIG, storage);
   let nicknameStart = false, nicknameAsked = storage.get('nicknameAsked', 'false') === 'true';
   let best = Number(storage.get('best', '0')) || 0;
-  let lastTime = null, uiMode = '', lessonIndex = -1, soundEnabled = false, audioContext;
-  let resumeAt = 0, touchCrouch = false, touchStraddle = false, lastItems = 0, ambientTime = 0;
+  const sound = new Run188Audio.Sound(storage);
+  let lastTime = null, uiMode = '', lessonIndex = -1;
+  let resumeAt = 0, touchCrouch = false, touchStraddle = false, ambientTime = 0;
   let reducedEffects = storage.get('reducedEffects', String(matchMedia('(prefers-reduced-motion: reduce)').matches)) === 'true';
   let lastWarningAt = -Infinity, resultVersion = 0;
   let renderScale = 1, hazeGradient, vignetteGradient;
@@ -28,31 +29,18 @@
     if (resetPose) { model.crouching = false; model.straddling = false; }
   }
   function activate(action) {
-    clearInput(); resumeAt = 0; lastWarningAt = -Infinity; action(); uiMode = ''; lastItems = model.items; focusGame(); syncUI();
+    sound.stopMovement(); clearInput(); resumeAt = 0; lastWarningAt = -Infinity; action(); uiMode = ''; focusGame(); syncUI();
   }
   function pause() {
     if (!['playing', 'tutorial'].includes(model.mode)) return;
-    model.paused = true; resumeAt = 0; clearInput(false); syncUI();
+    sound.stopMovement(); model.soundEvents.length = 0; model.paused = true; resumeAt = 0; clearInput(false); syncUI();
   }
   function resume() {
     focusGame(); clearInput(false); resumeAt = performance.now() + 3000;
     $('pause-panel').hidden = true; $('countdown').hidden = false;
   }
-  function tone(frequency, duration = 0.12, type = 'sine', volume = 0.07) {
-    if (!soundEnabled) return;
-    try {
-      audioContext ??= new (window.AudioContext || window.webkitAudioContext)();
-      if (audioContext.state === 'suspended') audioContext.resume().catch(() => {});
-      const oscillator = audioContext.createOscillator(), gain = audioContext.createGain();
-      oscillator.type = type; oscillator.frequency.setValueAtTime(frequency, audioContext.currentTime);
-      gain.gain.setValueAtTime(volume, audioContext.currentTime);
-      gain.gain.exponentialRampToValueAtTime(0.001, audioContext.currentTime + duration);
-      oscillator.connect(gain); gain.connect(audioContext.destination);
-      oscillator.start(); oscillator.stop(audioContext.currentTime + duration);
-    } catch { soundEnabled = false; $('sound-button').textContent = '音：オフ'; }
-  }
-  function jump() { if (model.jump()) tone(290, 0.13, 'triangle'); }
-  function grab() { model.grab(); }
+  function jump() { model.jump(); sound.consume(model.soundEvents.splice(0), model); }
+  function grab() { model.grab(); sound.consume(model.soundEvents.splice(0), model); }
 
   $('start-button').addEventListener('click', startWithName);
   $('tutorial-button').addEventListener('click', () => activate(() => model.startTutorial()));
@@ -72,10 +60,33 @@
     $('skip-button').disabled = !$('skip-checkbox').checked;
   });
   $('skip-button').addEventListener('click', () => { if ($('skip-checkbox').checked) startWithName(); });
+  function syncSoundSettings() {
+    $('sound-button').textContent = '音：' + (sound.enabled ? 'オン' : 'オフ');
+    $('sound-button').setAttribute('aria-pressed', String(sound.enabled));
+    $('sound-toggle').checked = sound.enabled;
+    $('sound-volume').value = String(Math.round(sound.volume * 100));
+    $('sound-volume-value').textContent = Math.round(sound.volume * 100) + '％';
+    $('sound-status').textContent = sound.error;
+  }
   $('sound-button').addEventListener('click', () => {
-    soundEnabled = !soundEnabled; $('sound-button').textContent = '音：' + (soundEnabled ? 'オン' : 'オフ');
-    $('sound-button').setAttribute('aria-pressed', String(soundEnabled)); tone(660); focusGame();
+    sound.setEnabled(!sound.enabled); sound.unlock(); sound.play('ui'); syncSoundSettings(); focusGame();
   });
+  $('settings-button').addEventListener('click', () => { pause(); syncSoundSettings(); $('settings-dialog').showModal(); });
+  $('settings-close').addEventListener('click', () => $('settings-dialog').close());
+  $('settings-dialog').addEventListener('close', focusGame);
+  $('sound-toggle').addEventListener('change', () => {
+    sound.setEnabled($('sound-toggle').checked); sound.unlock(); sound.play('ui'); syncSoundSettings();
+  });
+  $('sound-volume').addEventListener('input', () => { sound.setVolume(Number($('sound-volume').value) / 100); syncSoundSettings(); });
+  $('sound-volume').addEventListener('change', () => { sound.unlock(); sound.play('ui'); });
+  // Trusted pointer/keyboard gestures also unlock audio on Safari and mobile browsers.
+  for (const event of ['pointerdown', 'keydown', 'click']) document.addEventListener(event, e => {
+    if (e.isTrusted && !e.repeat) sound.unlock();
+  }, true);
+  document.addEventListener('click', e => {
+    if (e.target.closest('#start-button,#restart-button,#settings-button,.ranking-open')) sound.play('ui');
+  }, true);
+  syncSoundSettings();
   $('sound-button').addEventListener('pointerdown', e => e.preventDefault());
   $('effects-button').addEventListener('pointerdown', e => e.preventDefault());
   $('effects-button').addEventListener('click', () => {
@@ -104,7 +115,7 @@
   window.addEventListener('blur', pause);
   document.addEventListener('visibilitychange', () => { if (document.hidden) pause(); });
   game.addEventListener('focusout', e => {
-    if (!game.contains(e.relatedTarget) && ['playing', 'tutorial'].includes(model.mode)) pause();
+    if (!game.contains(e.relatedTarget) && !$('tutorial-panel').contains(e.relatedTarget) && !$('tutorial-actions').contains(e.relatedTarget) && ['playing', 'tutorial'].includes(model.mode)) pause();
   });
   function bindTouch(id, action, release) {
     const button = $(id);
@@ -170,7 +181,7 @@
   }
   let rankingRequest = 0;
   function openRanking(load = true) {
-    $('nickname').value = ranking.name; $('nickname-error').textContent = ''; updateDistanceBest();
+    pause(); $('nickname').value = ranking.name; $('nickname-error').textContent = ''; updateDistanceBest();
     $('nickname-skip').hidden = !nicknameStart;
     $('ranking-send').hidden = !ranking.enabled || ranking.pending === null;
     $('ranking-refresh').hidden = !ranking.enabled;
@@ -205,7 +216,7 @@
     if (uiMode !== model.mode) {
       if (model.mode === 'gameover') {
         resultVersion++; $('save-status').textContent = '記録が範囲外のため、オンラインに送信しませんでした。';
-        best = Math.max(best, model.score); storage.set('best', best); tone(120, 0.45, 'triangle');
+        best = Math.max(best, model.score); storage.set('best', best);
         $('over-reason').textContent = model.reason;
         $('final-score').textContent = model.score.toLocaleString('ja-JP');
         $('final-distance').textContent = Math.floor(model.distance).toLocaleString('ja-JP') + ' m';
@@ -224,6 +235,8 @@
       $('title-panel').hidden = model.mode !== 'title';
       $('over-panel').hidden = model.mode !== 'gameover';
       $('tutorial-panel').hidden = model.mode !== 'tutorial';
+      $('tutorial-actions').hidden = model.mode !== 'tutorial';
+      $('play-hint').hidden = model.mode === 'tutorial';
       game.classList.toggle('tutorial-mode', model.mode === 'tutorial');
       game.dataset.mode = model.mode;
       $('pause-button').hidden = !active;
@@ -249,8 +262,8 @@
     document.body.classList.toggle('reduced-effects', reducedEffects);
     $('effects-button').setAttribute('aria-pressed', String(reducedEffects));
     $('effects-button').textContent = '演出：' + (reducedEffects ? '弱め' : '通常');
-    if (active && !model.paused && strain >= 95 && !reducedEffects && soundEnabled && model.elapsed - lastWarningAt >= 1.5) {
-      tone(620, 0.1, 'triangle', 0.025); lastWarningAt = model.elapsed;
+    if (active && !model.paused && strain >= 95 && !reducedEffects && sound.enabled && model.elapsed - lastWarningAt >= 1.5) {
+      sound.play('alarm'); lastWarningAt = model.elapsed;
     }
     const event = model.nextEvent;
     $('next-event').hidden = !active || !event;
@@ -271,7 +284,7 @@
       $('lesson-feedback').textContent = t.done ? 'できました！次へ進みましょう。' : progress;
       $('skip-button').disabled = !$('skip-checkbox').checked;
     }
-    if (model.items > lastItems) { tone(880); setTimeout(() => tone(1320, 0.18), 80); lastItems = model.items; }
+    sound.consume(model.soundEvents.splice(0), model);
     if (model.mode === 'playing') $('mode-label').textContent = model.area.name + '　・　速度 ' + (model.speed / CONFIG.INITIAL_SPEED).toFixed(1) + '倍';
   }
 
@@ -730,8 +743,7 @@
   function runner() {
     const crouched = model.crouching;
     const jumpOffset = model.jumpY * CM;
-    const running = ['playing', 'tutorial'].includes(model.mode) && !model.paused;
-    const phase = running ? model.elapsed * (10 + model.speed * 0.17) : ambientTime * 5;
+    const phase = ['playing', 'tutorial'].includes(model.mode) ? model.gaitPhase : ambientTime * 5;
     const sway = Math.sin(phase) * 5, bob = model.jumpY ? 0 : Math.abs(Math.sin(phase)) * 3;
     ctx.save();
     ctx.fillStyle = '#0b253b50'; ctx.beginPath(); ctx.ellipse(CX, GROUND + 4, 47 - Math.min(15, model.jumpY * .2), 11, 0, 0, Math.PI * 2); ctx.fill();
@@ -746,9 +758,10 @@
     const stride = model.jumpY > 0 ? 14 : Math.sin(phase) * (crouched ? 14 : 24);
     if (model.straddling) {
       const gap = (CONFIG.MAX_STRADDLE_WIDTH / 2 + 10) * CM;
-      line([[-13, hips], [-gap * .65, -70], [-gap, -10]], '#29475b', 24);
-      line([[14, hips], [gap * .65, -70], [gap, -10]], '#3d5e70', 25);
-      line([[-gap - 9, -5], [-gap + 10, -5]], '#c4d8c9', 11); line([[gap - 10, -5], [gap + 10, -5]], '#d5e5d2', 11);
+      const leftLift = Math.max(0, Math.sin(phase)) * 5, rightLift = Math.max(0, -Math.sin(phase)) * 5;
+      line([[-13, hips], [-gap * .65, -70], [-gap, -10 - leftLift]], '#29475b', 24);
+      line([[14, hips], [gap * .65, -70], [gap, -10 - rightLift]], '#3d5e70', 25);
+      line([[-gap - 9, -5 - leftLift], [-gap + 10, -5 - leftLift]], '#c4d8c9', 11); line([[gap - 10, -5 - rightLift], [gap + 10, -5 - rightLift]], '#d5e5d2', 11);
     } else {
       line([[-13, hips], [-21 - stride * .65, -65 + stride * .55], [-18 - stride, -10 - Math.max(0, stride * .6)]], '#29475b', 24);
       line([[14, hips], [20 + stride * .65, -65 - stride * .55], [19 + stride, -10 - Math.max(0, -stride * .6)]], '#3d5e70', 25);
@@ -860,5 +873,5 @@
   // The iframe needs an explicit click in some browsers; autofocus is only a convenience.
   focusGame();
   // Opt-in inspection for automated tests. Never enabled during ordinary play.
-  if (new URLSearchParams(location.search).has('test')) window.__RUN188_TEST__ = { model, ranking, openRanking, refreshRanking, pause, draw, syncUI, project, storage, runnerOpacity, armPose, trainGeometry, resizeCanvas, sceneryAt, skyCache, camera: { HORIZON, GROUND, CM } };
+  if (new URLSearchParams(location.search).has('test')) window.__RUN188_TEST__ = { model, sound, ranking, openRanking, refreshRanking, pause, draw, syncUI, project, storage, runnerOpacity, armPose, trainGeometry, resizeCanvas, sceneryAt, skyCache, camera: { HORIZON, GROUND, CM } };
 })();
