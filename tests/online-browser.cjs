@@ -14,8 +14,7 @@ const {chromium}=require('playwright'),assert=require('node:assert/strict'),path
    await context.route('https://www.gstatic.com/firebasejs/**',async route=>{
     const file=route.request().url().split('/').pop().replace('firebase-','').replace('.js','');
     let body=fs.readFileSync(path.join(sdk,'firebase-'+file+'.js'),'utf8');
-    // The npm browser bundle references shared modules; redirect those to local gstatic stubs too.
-    
+    // Use the exact pinned CDN browser builds from the npm package; only the emulator connection differs.
     const name=file==='auth'?'getAuth':file==='firestore'?'getFirestore':null;
     if(name){
      const match=body.match(new RegExp('([A-Za-z0-9_$]+) as '+name+'(?=[,}])'));

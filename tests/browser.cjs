@@ -106,7 +106,7 @@ const state = page => get(page, () => { const g = __RUN188_TEST__.model; return 
     await blockedPage.goto(url + '?test'); assert.equal((await state(blockedPage)).mode, 'tutorial');
     await blockedPage.locator('#skip-checkbox').check(); await blockedPage.locator('#skip-button').click();
     assert.equal((await state(blockedPage)).mode, 'playing'); await blocked.close();
-    console.log('PASS: all 40 event designs and seven areas render and localStorage denial does not stop play');
+    console.log('PASS: all 41 event designs and seven areas render and localStorage denial does not stop play');
     await page.setViewportSize({ width: 390, height: 850 }); await page.goto(url + '?test');
     await page.locator('#tutorial-button').click(); await page.screenshot({ path: path.join(__dirname, '../work/mobile.png') });
     assert.equal(await page.evaluate(() => document.documentElement.scrollWidth > innerWidth), false);

@@ -8,7 +8,7 @@ service cloud.firestore {
         && d.keys().hasOnly(['nickname', 'distance', 'updatedAt'])
         && d.nickname is string && d.nickname.size() >= 1 && d.nickname.size() <= 16
         && d.nickname.matches('^[\\p{L}\\p{N}\\p{M} _・ー.\\-]+$')
-        && !d.nickname.matches('.*(死ね|殺す|しね|fuck|shit|Fuck|Shit).*')
+        && !d.nickname.matches('(?i).*(死ね|殺す|しね|fuck|shit).*')
         && d.distance is int && d.distance >= 0 && d.distance <= 10000000
         && d.updatedAt == request.time;
     }

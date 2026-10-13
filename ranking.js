@@ -5,7 +5,7 @@
   function understanding(distance) { return Math.min(100, Math.floor(Math.max(0, Number(distance) || 0) / 10)); }
   function nickname(value) {
     const name = String(value).normalize('NFKC').trim().replace(/\s+/gu, ' ');
-    if ([...name].length < 1 || [...name].length > 16 || !/^[\p{L}\p{N}\p{M} _・ー.\-]+$/u.test(name) || /死ね|殺す|しね|\b(fuck|shit)\b/i.test(name)) {
+    if ([...name].length < 1 || [...name].length > 16 || !/^[\p{L}\p{N}\p{M} _・ー.\-]+$/u.test(name) || /死ね|殺す|しね|fuck|shit/i.test(name)) {
       throw new Error('名前は1〜16文字の文字・数字・空白・「_・ー.-」で入力してください。攻撃的な言葉は使えません。');
     }
     return name;

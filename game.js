@@ -337,7 +337,7 @@
   // Only direction changes; shoulder-to-elbow + elbow-to-hand is identical in every pose.
   function armPose(shoulder, target, extension = 1) {
     const length = 88 * CM, dx = target[0] - shoulder[0], dy = target[1] - shoulder[1];
-    const angle = Math.atan2(dy, dx), bend = (1 - extension) * .9;
+    const angle = Math.atan2(dy, dx), bend = (1 - extension) * .9 * (shoulder[0] < 0 ? -1 : 1);
     const elbow = [shoulder[0] + Math.cos(angle - bend) * length * .5, shoulder[1] + Math.sin(angle - bend) * length * .5];
     const hand = [elbow[0] + Math.cos(angle + bend) * length * .5, elbow[1] + Math.sin(angle + bend) * length * .5];
     return { shoulder, elbow, hand, length };

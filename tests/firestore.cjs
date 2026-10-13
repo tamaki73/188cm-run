@@ -16,7 +16,7 @@ const fs=require('node:fs'),assert=require('node:assert/strict');
   await env.withSecurityRulesDisabled(async context=>{await setDoc(ref(context.firestore(),'alice'),{nickname:'友達',distance:500,updatedAt:Timestamp.fromMillis(Date.now()-61000)});});
   await assertFails(setDoc(ref(a,'alice'),data('友達',499)));await assertSucceeds(setDoc(ref(a,'alice'),data('新しい名前',700)));
   await assertFails(deleteDoc(ref(a,'alice')));await assertFails(setDoc(ref(a,'alice','season-2'),data()));
-  for(const invalid of [data('<script>',10),data('a@b.com',10),data('死ね',10),data('x'.repeat(17),10),data('友達',-1),data('友達',1.5),data('友達',10000001),{...data(),email:'private@example.com'},{...data(),updatedAt:Timestamp.fromMillis(0)}]){
+  for(const invalid of [data('<script>',10),data('a@b.com',10),data('死ね',10),data('FUCK',10),data('x'.repeat(17),10),data('友達',-1),data('友達',1.5),data('友達',10000001),{...data(),email:'private@example.com'},{...data(),updatedAt:Timestamp.fromMillis(0)}]){
     const uid='invalid-'+Math.random();await assertFails(setDoc(ref(env.authenticatedContext(uid).firestore(),uid),invalid));
   }
   const greek=env.authenticatedContext('greek').firestore();await assertSucceeds(setDoc(ref(greek,'greek'),data('Νίκος',100)));

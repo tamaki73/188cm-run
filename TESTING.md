@@ -1,6 +1,6 @@
 # 統合改善の検証
 
-2026年10月13日。Node.js / Python / Chromium / Playwrightを使用。ゲーム本体とFirebase未設定時の挙動をローカルで確認し、Firebaseの実ルール・複数ブラウザ共有はGitHub Actionsのローカルエミュレーターで確認する構成です。本番Firebaseへの接続は未設定です。
+2026年10月13日。Node.js / Python / Chromium / Playwrightを使用。ゲーム本体とFirebase未設定時の挙動をローカルで確認し、Firebaseの実ルール・複数ブラウザ共有もGitHub Actionsのローカルエミュレーターで成功を確認しました。本番Firebaseへの接続は未設定です。
 
 ## ローカルで確認したこと
 
@@ -12,13 +12,13 @@
 - `node tests/browser.cjs`：全9段階と最後の5イベントを実キーで通過、再スタート、一時停止、低天井内での姿勢キーを保持した再開、localStorage拒否、全描画、390px幅の4タッチ操作。
 - `python3 tests/colab_test.py` ＋ `node tests/iframe.cjs`：生成した3セルを実行し、HTML全文のHTTP応答、サーバー再実行と終了、実iframeのキーボード操作、スクロール抑制、Eの新規押下。GoogleのColab表示APIへの呼び出しだけはモック。
 
-## Firebaseのエミュレーターで検証する項目
+## Firebaseのエミュレーターで確認したこと
 
 `npm run test:rules`：実際の `firestore.rules` を読み込み、未認証・他人の文書・下がる自己ベスト・60秒以内の更新・負値・小数・上限超・個人情報フィールド・HTML名前・禁止語・不正時刻・削除・新シーズンへの書き込みを拒否することを確認。正しい書き込み、名前変更、同名別ID、距離降順の取得、Unicode名前は許可。
 
 `npm run test:online`：別々のブラウザ保存領域の匿名ユーザー2人が同じFirestoreを使い、同じニックネームでも別記録として500m/1250mが距離順に出ること、理解度50%/100%、名前とIDの再読み込み後の保持、端末内ベスト、390pxのランキング、実通信遮断時の未送信表示とプレイ継続を確認。
 
-本番と同じFirebase SDK 13.0.0をnpm配布物からブラウザへ読み込ませ、接続先だけdemoエミュレーターへ変更します。テストに本番APIキー、Googleアカウント、管理者認証は使いません。このクラウド環境ではGoogleのエミュレーター配布先がネットワーク制限の対象なので、GitHub Actionsで同じコマンドを実行します。CIの最終結果はPRのChecksを参照してください。
+本番と同じFirebase SDK 13.0.0をnpm配布物からブラウザへ読み込ませ、接続先だけdemoエミュレーターへ変更します。テストに本番APIキー、Googleアカウント、管理者認証は使いません。このクラウド環境ではGoogleのエミュレーター配布先がネットワーク制限の対象なので、GitHub Actionsで同じコマンドを実行します。初回の統合CI [38355387188](https://github.com/tamaki73/188cm-run/actions/runs/38355387188) は全ステップ成功しました。最終コミットについてはPRのChecksを参照してください。
 
 ## 未確認の項目
 
