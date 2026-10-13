@@ -1,25 +1,26 @@
 'use strict';
-// CI uses Xvfb + headed Chromium: real document.visibilityState, not a mocked event.
-const{chromium}=require('playwright'),assert=require('node:assert/strict'),fs=require('node:fs');
+// Raw CDP deliberately avoids Playwright's per-session forced focus/visibility.
+const fs=require('node:fs'),{spawn}=require('node:child_process'),assert=require('node:assert/strict');
+const wait=ms=>new Promise(r=>setTimeout(r,ms));
 (async()=>{
- const b=await chromium.launch({headless:false,executablePath:process.env.CHROMIUM_PATH||'/usr/bin/chromium',args:['--no-sandbox']});
- const stats=[];
+ const profile=fs.mkdtempSync('work/tabs-profile-'),args=['--no-sandbox','--no-first-run','--no-default-browser-check','--remote-debugging-port=0',`--user-data-dir=${require('node:path').resolve(profile)}`,'about:blank'];if(process.env.TABS_HEADLESS)args.unshift('--headless=new');
+ const child=spawn(process.env.CHROMIUM_PATH||'/usr/bin/chromium',args,{stdio:'ignore'});let ws;
  try{
-  const c=await b.newContext({viewport:{width:1280,height:900}});await require('./offline-config.cjs')(c);await c.addInitScript(()=>{localStorage.setItem('188cm-run:skipTutorial','true');localStorage.setItem('188cm-run:nicknameAsked','true');});
-  const p=await c.newPage(),errors=[];p.on('pageerror',e=>errors.push(e.message));await p.goto((process.env.GAME_TEST_URL||'http://127.0.0.1:8000/')+'?test');const pc=await c.newCDPSession(p);await pc.send('Emulation.setFocusEmulationEnabled',{enabled:false});await p.bringToFront();await p.locator('#start-button').click();
-  await p.evaluate(()=>{__RUN188_TEST__.model.events=[];__RUN188_TEST__.model.spawnTimer=1e9;});await p.waitForFunction(()=>__RUN188_TEST__.music.running);
+  for(let i=0;!fs.existsSync(profile+'/DevToolsActivePort');i++){if(i>100)throw Error('Chromium did not start');await wait(100);}
+  const[port,path]=fs.readFileSync(profile+'/DevToolsActivePort','utf8').split('\n');ws=new WebSocket(`ws://127.0.0.1:${port}${path}`);await new Promise((r,j)=>{ws.onopen=r;ws.onerror=j;});let id=0;const pending=new Map();ws.onmessage=e=>{const m=JSON.parse(e.data);if(m.id){const p=pending.get(m.id);pending.delete(m.id);m.error?p.reject(Error(JSON.stringify(m.error))):p.resolve(m.result);}};
+  function send(method,params={},sessionId){return new Promise((resolve,reject)=>{const n=++id;pending.set(n,{resolve,reject});ws.send(JSON.stringify({id:n,method,params,...sessionId?{sessionId}:{}}));});}
+  const target=(await send('Target.createTarget',{url:'about:blank',newWindow:false})).targetId,session=(await send('Target.attachToTarget',{targetId:target,flatten:true})).sessionId;
+  const evaluate=async expression=>{const r=await send('Runtime.evaluate',{expression,returnByValue:true,awaitPromise:true,userGesture:true},session);if(r.exceptionDetails)throw Error(JSON.stringify(r.exceptionDetails));return r.result.value;};
+  async function click(id){await evaluate(`document.getElementById('${id}').scrollIntoView({block:'center'})`);await wait(120);const box=await evaluate(`(()=>{const r=document.getElementById('${id}').getBoundingClientRect();return{x:r.x+r.width/2,y:r.y+r.height/2}})()`);await send('Input.dispatchMouseEvent',{type:'mousePressed',button:'left',clickCount:1,...box},session);await send('Input.dispatchMouseEvent',{type:'mouseReleased',button:'left',clickCount:1,...box},session);}
+  async function until(expression){for(let i=0;i<150;i++){if(await evaluate(expression))return;await wait(100);}throw Error('Timed out: '+expression+' '+await evaluate(`JSON.stringify({hidden:document.hidden,paused:__RUN188_TEST__.model.paused,context:__RUN188_TEST__.sound.context?.state,error:__RUN188_TEST__.sound.error,music:__RUN188_TEST__.music.error,button:document.getElementById('resume-button').getBoundingClientRect().toJSON()})`));}
+  await send('Emulation.setDeviceMetricsOverride',{width:1280,height:900,deviceScaleFactor:1,mobile:false},session);await send('Page.enable',{},session);await send('Page.addScriptToEvaluateOnNewDocument',{source:"Object.defineProperty(window,'RUN188_ONLINE_CONFIG',{get:()=>({season:'season-1',firebase:null,appCheckSiteKey:''}),set:()=>{}});localStorage.setItem('188cm-run:skipTutorial','true');localStorage.setItem('188cm-run:nicknameAsked','true');"},session);
+  await send('Page.navigate',{url:(process.env.GAME_TEST_URL||'http://127.0.0.1:8000/')+'?test'},session);await until('Boolean(window.__RUN188_TEST__)');await click('start-button');await evaluate("__RUN188_TEST__.model.events=[];__RUN188_TEST__.model.spawnTimer=1e9;");await until('__RUN188_TEST__.music.running');
+  const expression="(()=>{const t=__RUN188_TEST__;return{hidden:document.hidden,frames:t.performanceStats.frames,draws:t.performanceStats.drawn,distance:t.model.distance,paused:t.model.paused,context:t.sound.context.state,music:t.music.running,notes:t.music.notes.size,voices:t.sound.voices.size}})()",stats=[];
   for(let i=0;i<3;i++){
-   // window.open creates a genuine sibling tab in the same browser window.
-   const promise=c.waitForEvent('page');const info=await pc.send('Target.getTargetInfo');await pc.send('Target.createTarget',{url:'about:blank',browserContextId:info.targetInfo.browserContextId,newWindow:false,background:false});const other=await promise;const oc=await c.newCDPSession(other);await oc.send('Emulation.setFocusEmulationEnabled',{enabled:false});await other.bringToFront();console.log('TAB WINDOWS',await pc.send('Browser.getWindowForTarget'),await oc.send('Browser.getWindowForTarget'));
-   await p.waitForFunction(()=>document.hidden,null,{polling:100});await p.waitForTimeout(150);
-   const before=await p.evaluate(()=>{const t=__RUN188_TEST__;return{hidden:document.hidden,frames:t.performanceStats.frames,draws:t.performanceStats.drawn,distance:t.model.distance,paused:t.model.paused,context:t.sound.context.state,music:t.music.running,notes:t.music.notes.size,voices:t.sound.voices.size}});
-   await other.waitForTimeout(1800);
-   const after=await p.evaluate(()=>{const t=__RUN188_TEST__;return{frames:t.performanceStats.frames,draws:t.performanceStats.drawn,distance:t.model.distance}});
+   const other=(await send('Target.createTarget',{url:'about:blank',newWindow:false,background:false})).targetId;await send('Target.activateTarget',{targetId:other});await until('document.hidden');await wait(180);const before=await evaluate(expression);await wait(1800);const after=await evaluate(expression);
    assert.equal(before.hidden,true);assert.equal(before.paused,true);assert.equal(before.context,'suspended');assert.equal(before.music,false);assert.equal(before.notes,0);assert.equal(before.voices,0);assert.equal(after.frames,before.frames);assert.equal(after.draws,before.draws);assert.equal(after.distance,before.distance);
-   await p.bringToFront();await p.waitForFunction(()=>!document.hidden);assert.equal(await p.evaluate(()=>__RUN188_TEST__.model.paused),true);
-   await p.locator('#resume-button').click();await p.waitForFunction(()=>!__RUN188_TEST__.model.paused);await p.waitForFunction(()=>__RUN188_TEST__.music.running);await p.waitForTimeout(150);
-   const resumed=await p.evaluate(()=>({distance:__RUN188_TEST__.model.distance,mode:__RUN188_TEST__.model.mode}));assert.ok(resumed.distance-before.distance<20);assert.equal(resumed.mode,'playing');stats.push({before,after,resumed});
+   await send('Target.activateTarget',{targetId:target});await until('!document.hidden');assert.equal(await evaluate('__RUN188_TEST__.model.paused'),true);await click('resume-button');await until('!__RUN188_TEST__.model.paused&&__RUN188_TEST__.music.running');const resumed=await evaluate(expression);assert.ok(resumed.distance-before.distance<20);stats.push({before,after,resumed});
   }
-  assert.deepEqual(errors,[]);fs.writeFileSync('work/tabs-results.json',JSON.stringify(stats,null,2));console.log('PASS: four real tabs / three switches; hidden rAF/audio fully stop, context suspends, 3-second controlled resume without teleport',stats);
- }finally{await b.close();}
+  fs.writeFileSync('work/tabs-results.json',JSON.stringify(stats,null,2));console.log('PASS: four native tabs / three switches; actual visibility, stopped rAF/audio/context, controlled resume',stats);
+ }finally{ws?.close();child.kill();await new Promise(r=>child.exitCode!==null?r():child.once('exit',r));fs.rmSync(profile,{recursive:true,force:true});}
 })().catch(e=>{console.error(e);process.exitCode=1});

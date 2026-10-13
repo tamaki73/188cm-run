@@ -9,7 +9,7 @@ const{chromium}=require('playwright'),fs=require('node:fs'),assert=require('node
    const p=await c.newPage();await p.goto(url+'?test');await p.locator('#start-button').click();
    await p.evaluate(()=>{const t=__RUN188_TEST__;t.model.events=[];t.model.spawnTimer=1e9;t.model.route=Run188.AREAS.slice();for(let i=0;i<7;i++){t.model.distance=i*180+45;t.draw();}t.model.distance=30;});return{p,c};
   }
-  for(const baseline of process.env.COMPARE_BASELINE? [true,false]:[false])for(const device of(baseline?['desktop','mobile']:['desktop','desktop-auto','mobile'])){
+  for(const baseline of process.env.SOAK_ONLY?[]:process.env.COMPARE_BASELINE? [true,false]:[false])for(const device of(baseline?['desktop','mobile']:['desktop','desktop-auto','mobile'])){
    const mobile=device==='mobile';
    const{p,c}=await open(baseline?'http://127.0.0.1:8001/':(process.env.GAME_TEST_URL||'http://127.0.0.1:8000/'),mobile,(mobile||device==='desktop-auto')?'auto':'high');
    for(const audio of[false,true]){
@@ -25,6 +25,8 @@ const{chromium}=require('playwright'),fs=require('node:fs'),assert=require('node
    await c.close();
   }
   const{p,c}=await open(process.env.GAME_TEST_URL||'http://127.0.0.1:8000/',false,'auto'),cdp=await c.newCDPSession(p);await cdp.send('Performance.enable');
+  // Initialize Playwright's polling helper before the retained-listener baseline.
+  await p.waitForFunction(()=>__RUN188_TEST__.model.mode==='playing');
   await p.evaluate(()=>{const t=__RUN188_TEST__;t.model.distance=850;t.pause();});await p.waitForTimeout(500);await cdp.send('HeapProfiler.collectGarbage');
   const initial=(await cdp.send('Performance.getMetrics')).metrics;results.baseListeners=initial.find(m=>m.name==='JSEventListeners').value;results.baseHeapMiB=initial.find(m=>m.name==='JSHeapUsedSize').value/1048576;
   await p.locator('#resume-button').click();await p.waitForFunction(()=>!__RUN188_TEST__.model.paused);results.safePauses=0;
