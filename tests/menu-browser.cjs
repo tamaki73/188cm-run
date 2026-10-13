@@ -16,8 +16,8 @@ const url=(process.env.GAME_TEST_URL||'http://127.0.0.1:8000/')+'?test';
     return{card:r(document.querySelector('.title-card')),canvas:r(document.querySelector('canvas')),font:parseFloat(getComputedStyle(document.querySelector('#start-button')).fontSize),enabled:t.sound.enabled,volume:t.sound.volume,context:t.sound.context,camera:t.camera};
    });
    measurements[mobile?'mobile':'desktop']=layout;
-   assert.equal(layout.enabled,true);assert.equal(layout.volume,.4);assert.equal(layout.context,null);assert.ok(layout.font>=14);
-   if(!mobile){assert.equal(layout.card.width,300);assert.ok(layout.card.height>=380&&layout.card.height<=438);assert.equal(layout.canvas.width,1178);assert.equal(layout.canvas.height,834.40625);assert.ok(layout.card.x+layout.card.width<layout.canvas.x+layout.canvas.width*.40);}
+   assert.equal(layout.enabled,true);assert.equal(layout.volume,.7);assert.equal(layout.context,null);assert.ok(layout.font>=14);
+   if(!mobile){assert.ok(layout.card.width>=layout.canvas.width*.20&&layout.card.width<=layout.canvas.width*.25);assert.ok(layout.card.height>=380&&layout.card.height<=438);assert.equal(layout.canvas.width,1178);assert.equal(layout.canvas.height,834.40625);assert.ok(layout.card.x+layout.card.width<layout.canvas.x+layout.canvas.width*.40);}
    else{assert.equal(layout.card.width,280);assert.ok(layout.card.height>=300&&layout.card.height<=362);assert.equal(layout.canvas.width,378);assert.ok(layout.card.y>=layout.canvas.y+layout.canvas.height);}
    assert.deepEqual(layout.camera,{HORIZON:246,GROUND:636,CM:1.38});
    assert.equal(await page.locator('#title-panel .settings-open').count(),1);
@@ -59,7 +59,7 @@ const url=(process.env.GAME_TEST_URL||'http://127.0.0.1:8000/')+'?test';
    await page.locator('#settings-button').click();await page.locator('#sound-volume').fill('0');assert.match(await page.locator('#sound-status').innerText(),/0％/);await page.locator('#sound-volume').fill('65');await page.locator('#sound-volume').dispatchEvent('change');await page.locator('#settings-close').click();await page.reload();
    assert.equal(await page.evaluate(()=>__RUN188_TEST__.sound.volume),.65);assert.equal(await page.locator('#sound-button').getAttribute('aria-pressed'),'true');assert.equal(await page.evaluate(()=>__RUN188_TEST__.sound.context),null);
    assert.ok(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth));
-   console.log('PASS:',mobile?'mobile touch':'desktop keyboard','compact title/buttons, outside tutorial, default ON/40%, actual audio events, restart, explicit OFF/volume persistence, confirmation');
+   console.log('PASS:',mobile?'mobile touch':'desktop keyboard','compact title/buttons, outside tutorial, default ON/70%, actual audio events, restart, explicit OFF/volume persistence, confirmation');
    await context.close();
   }
   // Exercise suspended/closed real audio contexts and the first-gesture pending sound.

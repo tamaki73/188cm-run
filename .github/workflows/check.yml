@@ -30,6 +30,10 @@ jobs:
           node --check game.js
           node --check ranking.js
           node --check audio.js
+          node --check music.js
+          node --check quality.js
+          node --check runner-rig.js
+          node --check scenery.js
           npm test
           node tests/virtual-player.cjs
       - name: Colab成果物の一致とHTTP起動の検証
@@ -57,4 +61,7 @@ jobs:
           node tests/glass-browser.cjs
           node tests/audio-browser.cjs
           node tests/menu-browser.cjs
+          node tests/presentation-browser.cjs
+          xvfb-run -a node tests/tabs-browser.cjs
+          SOAK_SECONDS=90 node tests/performance-browser.cjs
           npm run test:online

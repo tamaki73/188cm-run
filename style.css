@@ -9,7 +9,8 @@
   --ink: #f7f3f5;
   --muted: #bcaab1;
   --edge: #ffffff26;
-  --radius: 12px;
+  --radius: 16px;
+  --glass-blur: 12px;
 }
 * { box-sizing: border-box; }
 body { margin: 0; background: radial-gradient(ellipse at 85% 0%,#351320 0%,#141016 35%,var(--bg) 75%); color: var(--ink); font: 14px "Hiragino Kaku Gothic ProN","Yu Gothic",Meiryo,sans-serif; }
@@ -53,11 +54,13 @@ canvas { display: block; width: 100%; height: auto; aspect-ratio: 960/680; }
 @supports ((backdrop-filter: blur(1px)) or (-webkit-backdrop-filter: blur(1px))) {
   .title-card,.result-card,.pause-card,.tutorial-panel,#ranking-dialog,#settings-dialog {
     background: linear-gradient(135deg,#31202ada,#151218e8);
-    -webkit-backdrop-filter: blur(12px);
-    backdrop-filter: blur(12px);
+    -webkit-backdrop-filter: blur(var(--glass-blur));
+    backdrop-filter: blur(var(--glass-blur));
   }
 }
-.title-card { margin: 0; width: 300px; max-height: 100%; overflow: auto; padding: 16px 20px; background: linear-gradient(135deg,#31202ac9,#151218d9); }
+.title-card { position: relative; isolation: isolate; margin: 0; width: clamp(260px,24%,300px); max-height: 100%; overflow: auto; padding: 16px 20px; background: linear-gradient(125deg,#f8dee91f,#49243368 38%,#14141cbd);
+  border-color: #ead2e740; border-top-color: #fff2fb80; border-left-color: #f3d6eb66; border-radius: 22px;
+  box-shadow: inset 1px 1px 1px #fff2fc35,inset -1px -1px 0 #e5b5ce19,0 16px 40px #08030b5c; }
 #title-panel { justify-content: flex-start; padding: 20px; background: linear-gradient(90deg,#0c080c70,transparent 48%); }
 .title-card h1 { font-size: 70px; line-height: .9; margin: 8px 0; }
 .title-card h1>span:first-child { font-size: 24px; }
@@ -242,3 +245,20 @@ body.reduced-effects .title-card,body.reduced-effects .result-card,body.reduced-
 }
 
 .play-layout[data-mode=title] .touch-controls,.play-layout[data-mode=gameover] .touch-controls { display: none; }
+
+/* Lightweight refraction/highlight: one bounded backdrop layer, no animated filter. */
+.title-card::before { content: ""; position: absolute; pointer-events: none; z-index: -1; inset: 0; border-radius: inherit; background: radial-gradient(ellipse at 10% 0%,#f4dcea1f,transparent 56%),linear-gradient(135deg,#ffffff0a,transparent 35%); }
+.title-card .primary { border-top-color: #fbd4e75c; border-radius: 12px; background: linear-gradient(125deg,#b64664c9,#800020db); box-shadow: inset 0 1px 2px #fff2f629,0 5px 20px #30051344; }
+.title-card h1 { text-shadow: 0 2px 14px #0a041848; }
+#settings-dialog { overflow-y: auto; }
+#settings-dialog input[type=range] { width: 100%; accent-color: var(--accent-light); min-height: 30px; }
+#quality-select { width: 100%; min-height: 42px; padding: 8px 12px; border: 1px solid #d4b0c74d; border-radius: 9px; background: #251b27; color: var(--ink); font: inherit; }
+body[data-quality=low] .title-card,body[data-quality=low] .result-card,body[data-quality=low] .pause-card,body[data-quality=low] .tutorial-panel,body[data-quality=low] dialog { backdrop-filter: none; -webkit-backdrop-filter: none; background-color: #211923df; }
+@media (max-width:700px) { .title-card { width: min(280px,100%); } }
+
+.play-layout[data-mode=title] .instruction-area { height: 68px; }
+.play-layout[data-mode=title] .play-hint { padding: 8px 16px; }
+.play-layout[data-mode=title] .play-hint p { margin: 4px 0; font-size: 12px; }
+.play-layout[data-mode=title] .play-hint .eyebrow { display: none; }
+#settings-dialog .sound-toggle { margin: 18px 0 10px; }
+#settings-dialog .volume-label { margin-top: 15px; margin-bottom: 4px; font-size: 13px; }
