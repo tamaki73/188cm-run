@@ -4,6 +4,7 @@ const {chromium}=require('playwright'),assert=require('node:assert/strict');
  const browser=await chromium.launch({executablePath:process.env.CHROMIUM_PATH||'/usr/bin/chromium',args:['--no-sandbox']});
  try{
   const page=await browser.newPage({viewport:{width:1140,height:960}}),errors=[];page.on('pageerror',e=>errors.push(e.message));
+  await require('./offline-config.cjs')(page);
   await page.addInitScript(()=>{localStorage.setItem('188cm-run:skipTutorial','true');});await page.goto((process.env.GAME_TEST_URL||'http://127.0.0.1:8000/')+'?test');
   // Real first-play nickname flow, followed by persistent name after reload.
   await page.locator('#start-button').click();assert.ok(await page.locator('#ranking-dialog').isVisible());

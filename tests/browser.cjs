@@ -14,6 +14,7 @@ const state = page => get(page, () => { const g = __RUN188_TEST__.model; return 
   const page = await context.newPage(); const errors = [];
   page.on('pageerror', e => errors.push(e.message));
   try {
+    await require('./offline-config.cjs')(context);
     await page.addInitScript(() => { try { localStorage.setItem('188cm-run:nicknameAsked', 'true'); } catch {} });
     await page.goto(url + '?test'); await page.locator('#game').click({ position: { x: 700, y: 400 } });
     assert.equal((await state(page)).mode, 'tutorial');
@@ -101,6 +102,7 @@ const state = page => get(page, () => { const g = __RUN188_TEST__.model; return 
     });
     // Storage-denied mode simulates browser restrictions common in embedded outputs.
     const blocked = await browser.newContext({ viewport: { width: 1100, height: 940 } });
+    await require('./offline-config.cjs')(blocked);
     await blocked.addInitScript(() => { Storage.prototype.getItem = function () { throw new DOMException('blocked', 'SecurityError'); }; Storage.prototype.setItem = function () { throw new DOMException('blocked', 'SecurityError'); }; });
     const blockedPage = await blocked.newPage(); blockedPage.on('pageerror', e => errors.push(e.message));
     await blockedPage.goto(url + '?test'); assert.equal((await state(blockedPage)).mode, 'tutorial');

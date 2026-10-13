@@ -8,6 +8,7 @@ const fs = require('node:fs');
     const page = await browser.newPage({ viewport: { width: 1140, height: 960 } }); const errors=[];
     page.on('pageerror',e=>errors.push(e.message)); fs.mkdirSync('work',{recursive:true});
     await page.addInitScript(() => { try { localStorage.setItem('188cm-run:nicknameAsked', 'true'); } catch {} });
+    await require('./offline-config.cjs')(page);
     await page.goto((process.env.GAME_TEST_URL || 'http://127.0.0.1:8000/')+'?test');
     await page.locator('#skip-checkbox').check(); await page.locator('#skip-button').click();
     await page.addStyleTag({content:'#pause-panel{display:none!important}'});

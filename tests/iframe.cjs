@@ -6,6 +6,7 @@ const assert = require('node:assert/strict');
   try {
     const page = await browser.newPage({ viewport: { width: 1140, height: 980 } }); const errors = [];
     page.on('pageerror', e => errors.push(e.message));
+    await require('./offline-config.cjs')(page);
     const base = process.env.GAME_TEST_URL || 'http://127.0.0.1:8000/';
     await page.setContent(`<iframe src="${base}work/colab-bundle.html?test" width="1100" height="850" title="Colab game"></iframe><div style="height:2000px">outer page</div>`);
     const frame = page.frames().find(f => f.url().includes('colab-bundle'));
