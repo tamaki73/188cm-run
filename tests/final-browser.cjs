@@ -10,6 +10,8 @@ const fs = require('node:fs');
     await page.addInitScript(() => { try { localStorage.setItem('188cm-run:nicknameAsked', 'true'); } catch {} });
     await require('./offline-config.cjs')(page);
     await page.goto((process.env.GAME_TEST_URL || 'http://127.0.0.1:8000/')+'?test');
+    await page.bringToFront();
+    if (await page.locator('#pause-panel').isVisible()) { await page.locator('#resume-button').click(); await page.waitForFunction(() => !__RUN188_TEST__.model.paused); }
     await page.locator('#skip-checkbox').check(); await page.locator('#skip-button').click();
     await page.addStyleTag({content:'#pause-panel{display:none!important}'});
     for (const id of ['mini-train','suitcase','cone','double-cone','vault','panda']) {

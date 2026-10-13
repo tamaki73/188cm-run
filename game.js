@@ -18,6 +18,8 @@
   let resumeAt = 0, touchCrouch = false, touchStraddle = false, lastItems = 0, ambientTime = 0;
   let reducedEffects = storage.get('reducedEffects', String(matchMedia('(prefers-reduced-motion: reduce)').matches)) === 'true';
   let lastWarningAt = -Infinity, resultVersion = 0;
+  let renderScale = 1, hazeGradient, vignetteGradient;
+  const drawEvents = [];
   const W = 960, H = 680, CX = 480, HORIZON = 246, GROUND = 636, CM = 1.38;
 
   function focusGame() { game.focus({ preventScroll: true }); $('focus-tip').hidden = true; }
@@ -154,9 +156,12 @@
       if (request !== rankingRequest) return;
       rows.forEach((row, index) => {
         const tr = document.createElement('tr');
+        if (index < 3) tr.classList.add('rank-' + (index + 1));
+        if (row.isSelf) tr.classList.add('ranking-self');
         for (const value of [index + 1, row.nickname, row.distance.toLocaleString('ja-JP') + ' m', Run188Ranking.understanding(row.distance) + '％']) {
           const td = document.createElement('td'); td.textContent = value; tr.append(td);
         }
+        if (row.isSelf) { const badge = document.createElement('small'); badge.className = 'self-badge'; badge.textContent = 'あなた'; tr.children[1].append(badge); }
         $('ranking-rows').append(tr);
       });
       $('ranking-status').textContent = rows.length ? '距離順のランキングです。' : 'まだ記録がありません。最初の記録を目指そう。'; updateDistanceBest();
@@ -220,6 +225,7 @@
       $('over-panel').hidden = model.mode !== 'gameover';
       $('tutorial-panel').hidden = model.mode !== 'tutorial';
       game.classList.toggle('tutorial-mode', model.mode === 'tutorial');
+      game.dataset.mode = model.mode;
       $('pause-button').hidden = !active;
       $('best-score').textContent = best.toLocaleString('ja-JP');
       $('mode-label').textContent = model.mode === 'tutorial' ? '練習中' : model.mode === 'playing' ? '街を、走り抜けろ。' : '街を走る、あなたの物語。';
@@ -240,6 +246,7 @@
     $('strain-warning').hidden = !warning;
     if ($('strain-warning').textContent !== warning) $('strain-warning').textContent = warning;
     game.classList.toggle('reduced-effects', reducedEffects);
+    document.body.classList.toggle('reduced-effects', reducedEffects);
     $('effects-button').setAttribute('aria-pressed', String(reducedEffects));
     $('effects-button').textContent = '演出：' + (reducedEffects ? '弱め' : '通常');
     if (active && !model.paused && strain >= 95 && !reducedEffects && soundEnabled && model.elapsed - lastWarningAt >= 1.5) {
@@ -296,8 +303,8 @@
   const skyCache = new Map();
   function skyLayer(area) {
     if (skyCache.has(area.id)) return skyCache.get(area.id);
-    const surface = document.createElement('canvas'); surface.width = W; surface.height = HORIZON + 70;
-    const mainContext = ctx; ctx = surface.getContext('2d');
+    const surface = document.createElement('canvas'); surface.width = Math.ceil(W * renderScale); surface.height = Math.ceil((HORIZON + 70) * renderScale);
+    const mainContext = ctx; ctx = surface.getContext('2d'); ctx.setTransform(renderScale, 0, 0, renderScale, 0, 0);
     try {
     const sky = ctx.createLinearGradient(0, 0, 0, HORIZON + 70);
     sky.addColorStop(0, '#273e52'); sky.addColorStop(0.55, area.sky); sky.addColorStop(1, '#d3ceae');
@@ -354,8 +361,8 @@
     const area = model.area;
     const travel = ['title', 'gameover'].includes(model.mode) ? ambientTime * 4 : model.distance;
     const scene = sceneryAt(travel);
-    ctx.drawImage(skyLayer(scene.previous), 0, 0);
-    if (scene.mix > 0) { ctx.globalAlpha = scene.mix; ctx.drawImage(skyLayer(scene.current), 0, 0); ctx.globalAlpha = 1; }
+    ctx.drawImage(skyLayer(scene.previous), 0, 0, W, HORIZON + 70);
+    if (scene.mix > 0) { ctx.globalAlpha = scene.mix; ctx.drawImage(skyLayer(scene.current), 0, 0, W, HORIZON + 70); ctx.globalAlpha = 1; }
     // A continuous pavement grid, curbs and side structures move with travelled distance.
     const floor = ctx.createLinearGradient(0, HORIZON, 0, H);
     floor.addColorStop(0, mixColor(scene.previous.sky, scene.current.sky, scene.mix)); floor.addColorStop(1, mixColor(scene.previous.floor, scene.current.floor, scene.mix));
@@ -395,8 +402,11 @@
       }
       ctx.globalAlpha = 1;
     }
-    const haze = ctx.createLinearGradient(0, HORIZON - 35, 0, HORIZON + 55);
-    haze.addColorStop(0, '#c6caae00'); haze.addColorStop(.5, '#c6caae40'); haze.addColorStop(1, '#c6caae00');
+    if (!hazeGradient) {
+      hazeGradient = ctx.createLinearGradient(0, HORIZON - 35, 0, HORIZON + 55);
+      hazeGradient.addColorStop(0, '#c6caae00'); hazeGradient.addColorStop(.5, '#c6caae40'); hazeGradient.addColorStop(1, '#c6caae00');
+    }
+    const haze = hazeGradient;
     rect(0, HORIZON - 35, W, 90, haze);
   }
 
@@ -500,14 +510,7 @@
   function groundObstacle(e) {
     const h = e.height * CM, width = e.width * CM;
     ctx.fillStyle = '#132c384d'; ctx.beginPath(); ctx.ellipse(0, 2, width * .6, 10, 0, 0, Math.PI * 2); ctx.fill();
-    if (e.style === 'mini-train') {
-      rect(-width / 2, -h + 8, width, h - 24, '#628eac', '#c9d9bd');
-      poly([[-width / 2, -h + 9], [width / 2, -h + 9], [width * .4, -h], [-width * .4, -h]], '#d48c69');
-      for (const x of [-width * .34, width * .04]) { rect(x, -h + 17, width * .29, h * .27, '#7194a3', '#dce5cd'); line([[x + 3, -h + 19], [x + width * .24, -h + 33]], '#e6eddb', 2); }
-      rect(-width / 2, -h * .4, width, 8, '#ddb174');
-      for (const x of [-width * .3, width * .3]) { circle(x, -8, 8, '#344d56'); circle(x, -8, 3, '#b9cfb9'); circle(x, -h * .28, 5, '#ece3a9'); }
-      rect(-width * .38, -22, width * .76, 9, '#426f77');
-    } else if (e.style === 'suitcase') {
+    if (e.style === 'suitcase') {
       rect(-width * .22, -h, width * .44, 7, '#495c64');
       rect(-width / 2, -h + 7, width, h - 19, '#ad8876', '#dbbda0');
       for (let i = 1; i < 5; i++) line([[-width / 2 + i * width / 5, -h + 17], [-width / 2 + i * width / 5, -19]], '#7e675f', 3);
@@ -564,7 +567,62 @@
       ctx.restore();
     }
   }
+  function trainGeometry(e) {
+    const near = Math.max(0, e.z), far = Math.max(near, e.z + e.length);
+    const point = (z, x, h) => { const p = project(z); return [CX + x * CM * p.s, p.y - h * CM * p.s]; };
+    return { near, far, point };
+  }
+  function miniTrain(e) {
+    if (e.completed || e.z + e.length <= 0) return;
+    const { near, far, point } = trainGeometry(e), half = e.width / 2, h = e.height;
+    const split = e.z + e.length * .52, gap = e.length * .035;
+    const car = (start, end, engine) => {
+      start = Math.max(near, start); end = Math.max(start, end); if (end - start < .01) return;
+      const pt = (z, x, height) => point(z, x, height);
+      poly([pt(start,-half,8),pt(start,half,8),pt(end,half,8),pt(end,-half,8)], '#273037');
+      // Distinct side panels and a copper roof use the same near/rear planes as collision depth.
+      for (const side of [-1,1]) {
+        poly([pt(start,side*half,15),pt(end,side*half,15),pt(end,side*half,h-7),pt(start,side*half,h-7)], side<0?'#48788b':'#345968', '#c3c8ba');
+        poly([pt(start,side*half,h-7),pt(end,side*half,h-7),pt(end,side*half,h),pt(start,side*half,h)], '#bb8165');
+        for (let i=0;i<3;i++) {
+          const a=start+(end-start)*(.13+i*.25),b=Math.min(end,a+(end-start)*.16);
+          poly([pt(a,side*half,h*.48),pt(b,side*half,h*.48),pt(b,side*half,h*.78),pt(a,side*half,h*.78)], '#a8c2c7', '#d7e0d2');
+        }
+        for (const t of [.16,.82]) {
+          const z=start+(end-start)*t,p=project(z),wheel=pt(z,side*(half+1),7);
+          circle(...wheel, 7*CM*p.s, '#202b34'); circle(...wheel, 2.4*CM*p.s, '#c0c7bb');
+        }
+      }
+      poly([pt(start,-half,h),pt(start,half,h),pt(end,half,h),pt(end,-half,h)], engine?'#c69877':'#8baeb4', '#e2d8c5');
+      if (!engine) {
+        const a=start+(end-start)*.13,b=end-(end-start)*.13;
+        poly([pt(a,-half*.72,h),pt(a,half*.72,h),pt(b,half*.72,h),pt(b,-half*.72,h)],'#354e59','#b8d0d0');
+        for(const t of [.32,.66]) { const z=start+(end-start)*t; line([pt(z,-half*.65,h),pt(z,half*.65,h)],'#bba283',4); }
+      } else {
+        const z=start+(end-start)*.57;
+        line([pt(z,-half*.85,h),pt(z,half*.85,h)],'#ead2b7',2);
+      }
+      const front=project(start);ctx.save();ctx.translate(CX,front.y);ctx.scale(front.s,front.s);
+      rect(-half*CM,-(h-7)*CM,e.width*CM,(h-22)*CM,engine?'#6794a5':'#527e90','#d2dace');
+      rect(-half*CM,-h*CM,e.width*CM,7*CM,'#c99473');
+      for (const x of [-half*.76,half*.08]) rect(x*CM,-h*.77*CM,half*.63*CM,h*.23*CM,'#a8c7d0','#e1e5d4');
+      rect(-half*CM,-h*.4*CM,e.width*CM,5*CM,'#deb77e');
+      for (const x of [-half*.67,half*.67]) circle(x*CM,-h*.29*CM,3.3*CM,'#f1dfae');
+      rect(-half*.75*CM,-14*CM,half*1.5*CM,5*CM,'#304956');
+      if(engine) { circle(0,-h*.31*CM,4*CM,'#ac5d64'); rect(-3*CM,-6*CM,6*CM,6*CM,'#596775'); }
+      ctx.restore();
+    };
+    ctx.save();
+    if (split+gap<far) car(split+gap,far,false);
+    if (split>near) {
+      line([point(Math.max(near,split-gap),0,18),point(Math.min(far,split+gap),0,18)],'#b5b9ad',4);
+      car(near,Math.min(far,split-gap),true);
+    }
+    ctx.restore();
+  }
+
   function obstacle(e) {
+    if (e.style === 'mini-train') { miniTrain(e); return; }
     if (e.z < -e.length - 5) return;
     if (e.endurance && e.completed) return;
     if (e.endurance) {
@@ -701,18 +759,18 @@
     const reaching = Boolean(reachEffect);
     const shoulderLift = reaching && reachEffect.high ? 14 * CM : 0;
     // Body and backpack, with folded torso when crouching.
-    poly([[-32 + sway * .3, shoulder + bob], [31 + sway * .3, shoulder + bob - shoulderLift], [27, hips + 10], [-27, hips + 10]], '#c2df73', '#7eae68');
-    rect(-18 + sway * .3, shoulder + 13 + bob, 37, 67, '#3b6770');
-    rect(-13 + sway * .3, shoulder + 22 + bob, 27, 43, '#537f81');
-    line([[-22, shoulder + 7], [-24, hips - 17]], '#e5edaa', 4);
-    line([[23, shoulder + 7], [25, hips - 17]], '#e5edaa', 4);
+    poly([[-32 + sway * .3, shoulder + bob], [31 + sway * .3, shoulder + bob - shoulderLift], [27, hips + 10], [-27, hips + 10]], '#a63b57', '#733047');
+    rect(-18 + sway * .3, shoulder + 13 + bob, 37, 67, '#34333c');
+    rect(-13 + sway * .3, shoulder + 22 + bob, 27, 43, '#59505b');
+    line([[-22, shoulder + 7], [-24, hips - 17]], '#d8b0bd', 4);
+    line([[23, shoulder + 7], [25, hips - 17]], '#d8b0bd', 4);
     // Arms extend only after E, independent of whether the attempt succeeds.
     const rightShoulder = [32 + sway * .3, shoulder + bob - shoulderLift];
     const target = reaching ? [reachEffect?.high ? 40 : 106, -(reachEffect?.high ? CONFIG.STANDING_REACH : Math.max(100, reachEffect?.height ?? 150)) * CM] : [60 + stride * .5, shoulder + 100];
     const rightArm = armPose(rightShoulder, target, reaching ? 1 : .25);
     const leftArm = armPose([-31 + sway * .3, shoulder + bob], [-65 - stride * .5, shoulder + 100], .25);
-    line([leftArm.shoulder, leftArm.elbow, leftArm.hand], '#c4df78', 15);
-    line([rightArm.shoulder, rightArm.elbow, rightArm.hand], '#cce68b', 16);
+    line([leftArm.shoulder, leftArm.elbow, leftArm.hand], '#87324d', 15);
+    line([rightArm.shoulder, rightArm.elbow, rightArm.hand], '#bc647d', 16);
     circle(...rightArm.hand, 8, '#dcba95'); circle(...leftArm.hand, 8, '#cba681');
     rect(-8, headY + 17, 16, shoulder - headY - 8, '#d6b392');
     // Head top is exactly -height: drawing and collisions share their geometry.
@@ -727,18 +785,20 @@
       if (fx.type !== 'collect') continue;
       ctx.save(); ctx.globalAlpha = Math.min(1, fx.life * 2);
       const t = 1 - fx.life, y = 320 - t * 75;
-      label(fx.text, CX + 94, y, 29, '#e4ff9d');
+      label(fx.text, CX + 94, y, 29, '#f1bacb');
       if (reducedEffects) { ctx.restore(); continue; }
       for (let i = 0; i < 14; i++) {
         const a = i * Math.PI * 2 / 14 + fx.seed;
-        circle(CX + 100 + Math.cos(a) * t * 100, 330 + Math.sin(a) * t * 85 + t * t * 55, 3 * fx.life + 1, i % 2 ? '#c5ef7c' : '#e3d58f');
+        circle(CX + 100 + Math.cos(a) * t * 100, 330 + Math.sin(a) * t * 85 + t * t * 55, 3 * fx.life + 1, i % 2 ? '#dda3b5' : '#d8c3a1');
       }
       ctx.restore();
     }
   }
   function draw() {
     ctx.clearRect(0, 0, W, H); background();
-    const events = [...model.events].sort((a, b) => b.z - a.z);
+    drawEvents.length = 0;
+    for (const event of model.events) drawEvents.push(event);
+    const events = drawEvents.sort((a, b) => b.z - a.z);
     if (model.mode === 'title') {
       obstacle({ style: 'mini-train', rule: 'straddle', clearance: 70, height: 70, width: 66, z: 12, length: 6 });
       item({ prop: 'vending', object: 'drink', height: 201, z: 8, kind: 'item' });
@@ -747,8 +807,11 @@
     runner();
     for (const event of events) if (event.z < 0) (event.kind === 'obstacle' ? obstacle : item)(event);
     effects();
-    const vignette = ctx.createRadialGradient(CX, 350, 180, CX, 350, 610);
-    vignette.addColorStop(0, '#06132200'); vignette.addColorStop(1, '#0613227a'); rect(0, 0, W, H, vignette);
+    if (!vignetteGradient) {
+      vignetteGradient = ctx.createRadialGradient(CX, 350, 180, CX, 350, 610);
+      vignetteGradient.addColorStop(0, '#06132200'); vignetteGradient.addColorStop(1, '#0613227a');
+    }
+    const vignette = vignetteGradient; rect(0, 0, W, H, vignette);
     heightReference();
   }
   function heightReference() {
@@ -780,10 +843,22 @@
     } else model.update(dt, touchCrouch || ['ArrowDown', 'ShiftLeft', 'ShiftRight'].some(k => held.has(k)), touchStraddle || held.has('KeyS'));
     syncUI(); draw(); requestAnimationFrame(frame);
   }
+  function resizeCanvas() {
+    const width = canvas.getBoundingClientRect().width;
+    if (!width) return;
+    const scale = width / W * Math.min(2, window.devicePixelRatio || 1);
+    const pixelWidth = Math.round(W * scale), pixelHeight = Math.round(H * scale);
+    if (canvas.width === pixelWidth && canvas.height === pixelHeight) return;
+    canvas.width = pixelWidth; canvas.height = pixelHeight; renderScale = pixelWidth / W;
+    ctx.setTransform(renderScale,0,0,renderScale,0,0); skyCache.clear(); hazeGradient = vignetteGradient = null;
+  }
+  if (window.ResizeObserver) new ResizeObserver(resizeCanvas).observe(canvas);
+  window.addEventListener('resize',resizeCanvas);
+  resizeCanvas();
   if (storage.get('skipTutorial', 'false') !== 'true') model.startTutorial();
   syncUI(); draw(); requestAnimationFrame(frame);
   // The iframe needs an explicit click in some browsers; autofocus is only a convenience.
   focusGame();
   // Opt-in inspection for automated tests. Never enabled during ordinary play.
-  if (new URLSearchParams(location.search).has('test')) window.__RUN188_TEST__ = { model, ranking, openRanking, refreshRanking, pause, draw, syncUI, project, storage, runnerOpacity, armPose, sceneryAt, skyCache, camera: { HORIZON, GROUND, CM } };
+  if (new URLSearchParams(location.search).has('test')) window.__RUN188_TEST__ = { model, ranking, openRanking, refreshRanking, pause, draw, syncUI, project, storage, runnerOpacity, armPose, trainGeometry, resizeCanvas, sceneryAt, skyCache, camera: { HORIZON, GROUND, CM } };
 })();

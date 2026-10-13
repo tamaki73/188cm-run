@@ -53,4 +53,5 @@ jobs:
           node tests/browser.cjs
           node tests/iframe.cjs
           node tests/visual-scroll.cjs
+          node tests/glass-browser.cjs
           npm run test:online

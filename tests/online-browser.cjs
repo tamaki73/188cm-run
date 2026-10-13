@@ -38,7 +38,7 @@ const {chromium}=require('playwright'),assert=require('node:assert/strict'),path
   const b=await create({width:390,height:844});await b.locator('#start-button').click();await b.locator('#nickname').fill('友達');await b.locator('#nickname-form button').click();await finish(b,1250);
   await a.locator('#over-panel .ranking-open').click();await a.waitForFunction(()=>document.querySelectorAll('#ranking-rows tr').length===2);
   const rows=await a.locator('#ranking-rows').innerText();assert.match(rows,/1[\s\S]*1,250 m[\s\S]*100％[\s\S]*2[\s\S]*500 m[\s\S]*50％/);
-  assert.equal(await a.locator('#ranking-rows tr').count(),2);assert.equal(await a.locator('#nickname').inputValue(),'友達');
+  assert.equal(await a.locator('#ranking-rows tr').count(),2);assert.equal(await a.locator('.ranking-self').count(),1);assert.match(await a.locator('.ranking-self').innerText(),/500 m/);assert.equal(await a.locator('#nickname').inputValue(),'友達');
   await b.locator('#over-panel .ranking-open').click();await b.waitForFunction(()=>document.querySelectorAll('#ranking-rows tr').length===2);await b.screenshot({path:'work/online-mobile.png'});
   await a.locator('#nickname').fill('<img src=x>');await a.locator('#nickname-form button').click();assert.ok((await a.locator('#nickname-error').innerText()).includes('1〜16'));
   await a.locator('#ranking-close').click();await a.reload();assert.equal(await a.evaluate(()=>__RUN188_TEST__.ranking.name),'友達');

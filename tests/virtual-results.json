@@ -1,10 +1,10 @@
 {
   "seeds": 50,
   "eventsPassed": 100000,
-  "totalDistance": 11612157,
+  "totalDistance": 10547515,
   "maxStrain": 88.17,
-  "highLoadFrames": 393576,
-  "recoveries": 7839,
+  "highLoadFrames": 347975,
+  "recoveries": 6883,
   "maxQueuedEvents": 5,
   "uniqueEvents": 41,
   "areas": [

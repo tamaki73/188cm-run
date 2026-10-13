@@ -105,7 +105,8 @@ const state = page => get(page, () => { const g = __RUN188_TEST__.model; return 
     await require('./offline-config.cjs')(blocked);
     await blocked.addInitScript(() => { Storage.prototype.getItem = function () { throw new DOMException('blocked', 'SecurityError'); }; Storage.prototype.setItem = function () { throw new DOMException('blocked', 'SecurityError'); }; });
     const blockedPage = await blocked.newPage(); blockedPage.on('pageerror', e => errors.push(e.message));
-    await blockedPage.goto(url + '?test'); assert.equal((await state(blockedPage)).mode, 'tutorial');
+    await blockedPage.goto(url + '?test'); await blockedPage.bringToFront(); await blockedPage.evaluate(() => new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(() => requestAnimationFrame(resolve))))); assert.equal((await state(blockedPage)).mode, 'tutorial');
+    if (await blockedPage.locator('#pause-panel').isVisible()) { await blockedPage.locator('#resume-button').click(); await blockedPage.waitForFunction(() => !__RUN188_TEST__.model.paused); }
     await blockedPage.locator('#skip-checkbox').check(); await blockedPage.locator('#skip-button').click();
     await blockedPage.locator('#nickname-skip').click(); await blockedPage.waitForFunction(() => __RUN188_TEST__.model.mode === 'playing');
     await blockedPage.evaluate(() => { __RUN188_TEST__.model.gameOver('test'); __RUN188_TEST__.syncUI(); });

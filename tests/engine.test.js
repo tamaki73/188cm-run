@@ -89,9 +89,9 @@ test('30/60/120fps yield the same distance and fatigue', () => {
 test('area-specific spawning has reaction time, bounded forecast, no unreachable or repeated event', () => {
   const g = new GameModel(seeded(2)); g.start(); let last = '', time = 0;
   for (let i=0;i<2000;i++) {
-    g.distance=i*7; g.elapsed=i*1.6; g.spawn(); const e=g.events.pop(); if(!e) continue;
+    g.distance=i*7; g.elapsed=i*1.6; const previousPlan=g.planTime,previousEnd=g.planEndTime,afterJump=g.lastAction==='jump'; g.spawn(); const e=g.events.pop(); if(!e) continue;
     assert.notEqual(e.id,last); last=e.id; assert.ok(e.areas.includes(e.areaId)); assert.ok(e.arrivalTime-g.elapsed>=C.MIN_REACTION_TIME-1e-8);
-    assert.ok(e.arrivalTime-time>=1.3-1e-8); time=e.arrivalTime; assert.ok(g.planLoad<95); if(!e.endurance&&e.plannedCost>0) assert.ok(g.planLoad<=C.PLANNER_STRAIN_LIMIT+1e-8);
+    assert.ok(e.arrivalTime-previousPlan >= (afterJump ? 1.3 : .95)-1e-8); assert.ok(e.arrivalTime-previousEnd >= .8-1e-8); time=e.arrivalTime; assert.ok(g.planLoad<95); if(!e.endurance&&e.plannedCost>0) assert.ok(g.planLoad<=C.PLANNER_STRAIN_LIMIT+1e-8);
     if(e.kind==='item') assert.ok(e.height<=327);
   }
   assert.equal(AREAS.length,7); assert.equal(areaAt(0).id,'street'); assert.equal(areaAt(180*5).id,'park');
@@ -157,4 +157,24 @@ test('unnecessary crouch at a safe door has a later cost; a short tap is recover
  const correct=passage(0),tap=passage(.1),waste=passage(1.2);
  assert.equal(correct.g.mode,'playing');assert.equal(tap.g.mode,'playing');assert.equal(waste.g.reason,'ヘルニアになりました');assert.ok(correct.peak>=80&&correct.peak<95);
  const safe=fresh();door(safe,210,0);safe.update(.6,true);assert.equal(safe.mode,'playing');assert.ok(safe.strain>0);
+});
+
+test('long mini-train preserves height/width, uses .75s crossing and requires S through the rear edge', () => {
+ for(const distance of [0,250,850]) {
+  const g=fresh();g.distance=distance;const e=g.makeObstacle(def('mini-train'),70,2);g.events=[e];
+  assert.equal(e.duration,.75);assert.equal(e.width,66);assert.equal(e.height,70);
+  let occupied=0;for(let i=0;i<300&&!e.completed;i++){if(e.z<=0)occupied+=1/120;g.update(1/120,false,true);}
+  assert.equal(g.mode,'playing');assert.ok(e.completed);assert.ok(Math.abs(occupied-.75)<.025);assert.ok(g.strain<25);
+  const fail=fresh();fail.distance=distance;fail.events=[fail.makeObstacle(def('mini-train'),70,2)];fail.update(.4,false,true);assert.equal(fail.mode,'playing');fail.update(.04);assert.equal(fail.mode,'gameover');
+ }
+ const tutorial=new GameModel();tutorial.startTutorial();tutorial.tutorial.step=3;tutorial.setupLesson();assert.equal(tutorial.events[0].duration,.16);assert.ok(Math.abs(tutorial.events[0].length-1.44)<1e-8);
+});
+test('shorter slots keep a full landing margin and extra time after a long train', () => {
+ const g=new GameModel(seeded(22));g.start();let checked=0;
+ for(let frame=0;frame<180000&&g.mode==='playing'&&g.completedEvents<1000;frame++) {
+  const previous=g.events.at(-1),end=g.planEndTime,action=g.lastAction,serial=g.serial;
+  drive(g);
+  if(g.serial>serial&&previous){const next=g.events.find(e=>e.uid>serial);if(next){assert.ok(next.arrivalTime-end>=.8-1e-8);if(action==='jump')assert.ok(next.arrivalTime-previous.arrivalTime>=1.3-1e-8);checked++;}}
+ }
+ assert.equal(g.mode,'playing');assert.equal(g.completedEvents,1000);assert.ok(checked>500);
 });

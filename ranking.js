@@ -30,7 +30,7 @@
       async best() { const doc = await dbSDK.getDoc(own); return doc.exists() ? doc.data().distance : 0; },
       async top() {
         const snap = await dbSDK.getDocs(dbSDK.query(collection, dbSDK.orderBy('distance', 'desc'), dbSDK.limit(10)));
-        return snap.docs.map(d => ({ id: d.id, ...d.data() }));
+        return snap.docs.map(d => ({ id: d.id, ...d.data(), isSelf: d.id === user.uid }));
       },
       async save(name, distance) {
         return dbSDK.runTransaction(db, async transaction => {
