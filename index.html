@@ -47,15 +47,23 @@
         <div class="skip-row"><label><input type="checkbox" id="skip-checkbox"> 次回からチュートリアルを表示しない</label><button id="skip-button" class="text-button" disabled>チュートリアルをスキップ</button></div>
     </section>
     </div>
-    <footer class="controls"><div><kbd>↓</kbd><span> / </span><kbd>Shift</kbd><span> 長押しでしゃがむ</span></div><div><kbd>S</kbd><span> 長押しでまたぐ</span></div><div><kbd>Space</kbd><span> ジャンプ</span></div><div><kbd>E</kbd><span> アイテム取得</span></div><div><kbd>Esc</kbd><span> 一時停止</span></div><button class="text-button" id="sound-button" aria-pressed="true">音：オン</button><button class="text-button settings-open" id="settings-button">設定</button><button class="text-button" id="effects-button" aria-pressed="false">演出：通常</button></footer>
+    <footer class="controls"><div><kbd>↓</kbd><span> / </span><kbd>Shift</kbd><span> 長押しでしゃがむ</span></div><div><kbd>S</kbd><span> 長押しでまたぐ</span></div><div><kbd>Space</kbd><span> ジャンプ</span></div><div><kbd>E</kbd><span> アイテム取得</span></div><div><kbd>Esc</kbd><span> 一時停止</span></div><button class="text-button" id="sound-button" aria-pressed="true">効果音：オン</button><button class="text-button settings-open" id="settings-button">設定</button><button class="text-button" id="effects-button" aria-pressed="false">演出：通常</button></footer>
     <p class="footnote">アイテムは近づいてE。取り逃がすと終了します。<span>病名・負荷・身体能力はゲーム内の演出です。遊具や標識への現実の行動は勧めません。</span></p>
 
   </main>
   <dialog id="settings-dialog" aria-labelledby="settings-title">
     <div class="ranking-heading"><h2 id="settings-title">設定</h2><button id="settings-close" class="text-button">閉じる ×</button></div>
+    <label class="volume-label" for="quality-select">グラフィック品質 <output id="quality-status">自動</output></label>
+    <select id="quality-select"><option value="auto">自動</option><option value="low">低</option><option value="medium">中</option><option value="high">高</option></select>
     <label class="sound-toggle"><span>効果音</span><input id="sound-toggle" type="checkbox"> オン</label>
-    <label class="volume-label" for="sound-volume">効果音の音量 <output id="sound-volume-value" for="sound-volume">40％</output></label>
-    <input id="sound-volume" type="range" min="0" max="100" step="1" value="40">
+    <label class="volume-label" for="sound-volume">効果音の音量 <output id="sound-volume-value" for="sound-volume">70％</output></label>
+    <input id="sound-volume" type="range" min="0" max="100" step="1" value="70">
+    <label class="sound-toggle"><span>BGM</span><input id="bgm-toggle" type="checkbox"> オン</label>
+    <label class="volume-label" for="bgm-volume">BGMの音量 <output id="bgm-volume-value" for="bgm-volume">35％</output></label>
+    <input id="bgm-volume" type="range" min="0" max="100" step="1" value="35">
+    <label class="volume-label" for="master-volume">マスター音量 <output id="master-volume-value" for="master-volume">85％</output></label>
+    <input id="master-volume" type="range" min="0" max="100" step="1" value="85">
+    <button id="audio-resume" class="text-button">音声を再開・確認音を鳴らす</button>
     <p class="ranking-note">設定はこのブラウザに保存されます。ゲーム中に開くと一時停止します。</p>
     <p id="sound-status" class="ranking-note" role="status"></p>
   </dialog>
@@ -73,6 +81,10 @@
   <script src="ranking.js"></script>
   <script src="game-engine.js"></script>
   <script src="audio.js"></script>
+  <script src="music.js"></script>
+  <script src="quality.js"></script>
+  <script src="runner-rig.js"></script>
+  <script src="scenery.js"></script>
   <script src="game.js"></script>
 </body>
 </html>

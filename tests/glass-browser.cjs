@@ -6,7 +6,7 @@ const {chromium}=require('playwright'),assert=require('node:assert/strict'),fs=r
   fs.mkdirSync('work',{recursive:true});
   const context=await browser.newContext({viewport:{width:1440,height:1080},deviceScaleFactor:2});
   await require('./offline-config.cjs')(context);
-  await context.addInitScript(()=>localStorage.setItem('188cm-run:skipTutorial','true'));
+  await context.addInitScript(()=>{localStorage.setItem('188cm-run:skipTutorial','true');localStorage.setItem('188cm-run:quality','high');});
   const page=await context.newPage(),errors=[];page.on('pageerror',e=>errors.push(e.message));
   await page.goto((process.env.GAME_TEST_URL||'http://127.0.0.1:8000/')+'?test');
   await page.screenshot({scale:'css',path:'work/glass-title-desktop.png'});

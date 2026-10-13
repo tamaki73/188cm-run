@@ -4,7 +4,7 @@
   "private": true,
   "description": "188cm RUN development and emulator checks; Pages needs no build step",
   "scripts": {
-    "test": "node tests/engine.test.js && node tests/ranking.test.cjs && node tests/audio.test.cjs",
+    "test": "node tests/engine.test.js && node tests/ranking.test.cjs && node tests/audio.test.cjs && node tests/presentation.test.cjs",
     "test:rules": "firebase emulators:exec --only firestore --project demo-188cm-run \"node tests/firestore.cjs\"",
     "test:online": "firebase emulators:exec --only firestore,auth --project demo-188cm-run \"node tests/online-browser.cjs\""
   },
