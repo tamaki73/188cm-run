@@ -1,0 +1,15 @@
+{
+  "events": 20020,
+  "challenges": 1579,
+  "windups": 417,
+  "fatigueEventShare": 9.97,
+  "actions": {
+    "crouch": 3539,
+    "low-item": 9112,
+    "straddle": 1964,
+    "high-item": 838,
+    "standing": 2660,
+    "jump": 1058,
+    "open": 849
+  }
+}

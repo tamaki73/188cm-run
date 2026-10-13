@@ -1,26 +1,35 @@
 name: ゲームの検証
 on:
   push:
-    branches: [main]
+    branches: [main, 'feat/**']
   pull_request:
 permissions:
   contents: read
 jobs:
   check:
     runs-on: ubuntu-latest
+    timeout-minutes: 20
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
         with:
           node-version: '22'
+          cache: npm
       - uses: actions/setup-python@v5
         with:
           python-version: '3.12'
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '21'
+      - name: テスト用依存関係
+        run: npm ci
       - name: JavaScriptとルールの検証
         run: |
           node --check game-engine.js
           node --check game.js
-          node tests/engine.test.js
+          node --check ranking.js
+          npm test
           node tests/virtual-player.cjs
       - name: Colab成果物の一致とHTTP起動の検証
         run: |
@@ -28,3 +37,20 @@ jobs:
           python3 tools/build_colab.py
           git diff --exit-code -- 188cm_RUN.ipynb colab_cells.py
           python3 tests/colab_test.py
+      - name: Firestoreアクセス制御の検証（本番に接続しない）
+        run: npm run test:rules
+      - name: ブラウザの準備
+        run: |
+          npx playwright install --with-deps chromium
+          node -e "require('fs').appendFileSync(process.env.GITHUB_ENV, 'CHROMIUM_PATH='+require('playwright').chromium.executablePath()+'\n')"
+      - name: ブラウザ・オンライン共有の検証（本番に接続しない）
+        run: |
+          python3 -m http.server 8000 --bind 127.0.0.1 > work/server.log 2>&1 &
+          server_pid=$!
+          trap 'kill "$server_pid"' EXIT
+          python3 -c "import urllib.request,time; time.sleep(1); urllib.request.urlopen('http://127.0.0.1:8000/').read()"
+          node tests/final-browser.cjs
+          node tests/browser.cjs
+          node tests/iframe.cjs
+          node tests/visual-scroll.cjs
+          npm run test:online

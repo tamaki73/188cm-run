@@ -1,0 +1,26 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    function signedIn() { return request.auth != null; }
+    function validPlayer() {
+      let d = request.resource.data;
+      return d.keys().hasAll(['nickname', 'distance', 'updatedAt'])
+        && d.keys().hasOnly(['nickname', 'distance', 'updatedAt'])
+        && d.nickname is string && d.nickname.size() >= 1 && d.nickname.size() <= 16
+        && d.nickname.matches('^[\\p{L}\\p{N}\\p{M} _・ー.\\-]+$')
+        && !d.nickname.matches('.*(死ね|殺す|しね|fuck|shit|Fuck|Shit).*')
+        && d.distance is int && d.distance >= 0 && d.distance <= 10000000
+        && d.updatedAt == request.time;
+    }
+    match /seasons/{season}/players/{playerId} {
+      // Advance the allowlist for a new season; old rankings remain read-only.
+      allow get: if signedIn();
+      allow list: if signedIn() && request.query.limit != null && request.query.limit <= 10;
+      allow create: if signedIn() && request.auth.uid == playerId && season == 'season-1' && validPlayer();
+      allow update: if signedIn() && request.auth.uid == playerId && season == 'season-1' && validPlayer()
+        && request.resource.data.distance >= resource.data.distance
+        && request.time >= resource.data.updatedAt + duration.value(60, 's');
+      allow delete: if false;
+    }
+  }
+}

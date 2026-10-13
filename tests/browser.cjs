@@ -14,6 +14,7 @@ const state = page => get(page, () => { const g = __RUN188_TEST__.model; return 
   const page = await context.newPage(); const errors = [];
   page.on('pageerror', e => errors.push(e.message));
   try {
+    await page.addInitScript(() => { try { localStorage.setItem('188cm-run:nicknameAsked', 'true'); } catch {} });
     await page.goto(url + '?test'); await page.locator('#game').click({ position: { x: 700, y: 400 } });
     assert.equal((await state(page)).mode, 'tutorial');
     await page.screenshot({ path: path.join(__dirname, '../work/tutorial.png') });

@@ -1,20 +1,20 @@
 {
   "seeds": 50,
   "eventsPassed": 100000,
-  "totalDistance": 10448606,
+  "totalDistance": 11612157,
   "maxStrain": 88.17,
-  "highLoadFrames": 253754,
-  "recoveries": 5032,
-  "maxQueuedEvents": 4,
-  "uniqueEvents": 40,
+  "highLoadFrames": 393576,
+  "recoveries": 7839,
+  "maxQueuedEvents": 5,
+  "uniqueEvents": 41,
   "areas": [
-    "street",
-    "school",
-    "station",
-    "bus",
-    "park",
     "home",
-    "store"
+    "bus",
+    "street",
+    "store",
+    "station",
+    "school",
+    "park"
   ],
   "fps": [
     30,

@@ -8,7 +8,7 @@ ROOT = Path(__file__).resolve().parent.parent
 def bundle_html():
     html = (ROOT / 'index.html').read_text(encoding='utf-8')
     html = html.replace('<link rel="stylesheet" href="style.css">', '<style>\n' + (ROOT / 'style.css').read_text(encoding='utf-8') + '\n</style>')
-    for filename in ('game-engine.js', 'game.js'):
+    for filename in ('online-config.js', 'ranking.js', 'game-engine.js', 'game.js'):
         source = (ROOT / filename).read_text(encoding='utf-8')
         html = html.replace(f'<script src="{filename}"></script>', '<script>\n' + source + '\n</script>')
     return html
@@ -49,7 +49,7 @@ def build():
                 '**上から3つのコードセルを順番に実行**し、表示されたゲーム画面を一度クリックしてください。\n'
                 '初回は9ステップのチュートリアルが始まります。↓ / Shift：長押しでしゃがむ、S：長押しでまたぐ、Space：ジャンプ、E：取得、Enter：再挑戦。\n\n'
                 '通常プレイはアイテムを取り逃がすと終了します。高さと身体能力、遊具や標識への動作はゲーム内の架空設定です。\n'
-                '外部API・キー・追加のインストールは不要です。画面から離れると一時停止します。\n'
+                'ゲーム単体は外部API・キー・追加のインストール不要です。オンラインランキングは別途Firebaseの設定とインターネット接続が必要です。画面から離れると一時停止します。\n'
                 'ブラウザやiframeが保存領域を制限していると、チュートリアル設定と自己ベストは次回に引き継がれません。\n'
                 '公開ページ： https://tamaki73.github.io/188cm-run/\n')
     notebook = {

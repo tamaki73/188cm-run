@@ -138,8 +138,23 @@ test('a reservation never makes high items reachable on the ground or without E'
 test('wrong straddle/jump actions select the exact requested messages', () => {
   for(const id of ['double-cone','panda','elephant','turtle','horse']) {const g=fresh();g.events=[g.makeObstacle(def(id),def(id).min,1)];g.update(.2,false,true);assert.equal(g.reason,'そこまでの柔軟性はありません',id);}
   for(const id of ['mini-train','suitcase','cone','vault','lane-pole']) {const g=fresh();g.events=[g.makeObstacle(def(id),def(id).min,1)];g.jump();g.update(.2);assert.equal(g.reason,'そこまでの跳躍力はありません',id);}
-  const s=fresh();s.crouchStrain=99;s.update(.1,false,true);assert.match(s.reason,/またぎ/);
+  const s=fresh();s.crouchStrain=99;s.update(.1,false,true);assert.equal(s.reason,'股関節が限界を迎えました');
 });
 test('endurance sections cause genuine fatigue and provide time to recover without unavoidable failure', () => {
   for(const fps of [30,60,120]) { const r=simulate(77,1000,fps,{crouchLead:.23,crouchTail:.1});assert.ok(r.peak>=80&&r.peak<=95);assert.ok(r.highLoadFrames>0);assert.ok(r.recoveries>0);assert.ok(r.maxQueuedEvents<=5); }
+});
+
+test('five real restarts shuffle background routes and event sequences; tutorials remain fixed', () => {
+ const g=new GameModel(seeded(8)),routes=new Set(),runs=new Set();
+ for(let run=0;run<6;run++) {g.start();routes.add(g.route.map(a=>a.id).join(','));const ids=[];for(let n=0;n<12;n++){g.spawn();ids.push(...g.events.map(e=>e.id));g.events=[];g.elapsed=g.planTime;g.distance+=100;}runs.add(ids.join(','));}
+ assert.equal(routes.size,6);assert.equal(runs.size,6);
+ g.startTutorial();assert.equal(g.events.length,0);g.tutorial.step=2;g.setupLesson();assert.equal(g.events[0].id,'strap');assert.equal(g.events[0].endurance,undefined);
+ assert.equal(LESSONS[2][1],'↓キーまたはShiftキーを押してしゃがみます。完全に障害物が消えるまでしゃがみ続けてください。');
+});
+test('unnecessary crouch at a safe door has a later cost; a short tap is recoverable', () => {
+ function passage(waste){const g=fresh();g.distance=1000;g.speed=56;const safe=g.makeObstacle(def('new-class'),200,0),low=g.makeObstacle({...def('club-door'),duration:3.9},175,56*1.3);g.events=[safe,low];
+ let peak=0;for(let frame=0;frame<1000&&g.mode==='playing'&&!low.completed;frame++){const time=g.elapsed;g.update(1/120,time<waste || time>=1.18 && !low.completed);peak=Math.max(peak,g.strain);}return{g,peak};}
+ const correct=passage(0),tap=passage(.1),waste=passage(1.2);
+ assert.equal(correct.g.mode,'playing');assert.equal(tap.g.mode,'playing');assert.equal(waste.g.reason,'ヘルニアになりました');assert.ok(correct.peak>=80&&correct.peak<95);
+ const safe=fresh();door(safe,210,0);safe.update(.6,true);assert.equal(safe.mode,'playing');assert.ok(safe.strain>0);
 });

@@ -58,6 +58,7 @@
     overhead('bus-roof', 'バスの後方天井', 'bus', 180, 185, ['bus']),
     overhead('club-door', '古い部室の引き戸', 'club', 175, 180, ['school']),
     overhead('tatami', '和室の鴨居', 'tatami', 175, 180, ['home']),
+    overhead('old-entry', '古い建物の低い出入口', 'club', 175, 180, ['street', 'store']),
     overhead('new-class', '新しい教室のドア', 'classroom', 200, 200, ['school']),
     overhead('convenience', 'コンビニの自動ドア', 'auto-door', 200, 210, ['store']),
     overhead('supermarket', 'スーパーの自動ドア', 'supermarket', 200, 210, ['store']),
@@ -93,7 +94,7 @@
   const LESSONS = [
     ['4つの動作を試そう', '↓ / Shiftでしゃがむ、Sを押してまたぐ、Spaceでジャンプ、Eで手を伸ばす。4つを試しましょう。'],
     ['立ったまま通過しよう', '新しい教室の入口には頭上の余裕があります。何も押さず、立ったまま抜けましょう。'],
-    ['頭上を避けよう', '吊り革の輪が頭に重なります。↓ / Shiftを、通過が終わるまで押し続けましょう。'],
+    ['頭上を避けよう', '↓キーまたはShiftキーを押してしゃがみます。完全に障害物が消えるまでしゃがみ続けてください。'],
     ['脚を広げてまたごう', 'ミニ電車が迫ります。Sを押して脚を左右に広げ、抜けるまで維持しましょう。'],
     ['足元を上げて飛び越えよう', '横2個のコーンに近づいたらSpace。足が上を通るよう、少し手前でジャンプしましょう。'],
     ['立ってEで取得しよう', '学生証が手元に近づいたら、立ったままE。自動では取得しません。通常プレイは取り逃がすと終了です。'],
@@ -104,6 +105,7 @@
   class GameModel {
     constructor(random = Math.random) { this.random = random; this.mode = 'title'; this.reset(); }
     reset() {
+      this.route = AREAS.slice();
       this.distance = 0; this.itemScore = 0; this.items = 0;
       this.crouchStrain = 0; this.ankleStrain = 0; this.crouchEffort = 0; this.uprightTime = 0;
       this.jumpY = 0; this.jumpVelocity = 0; this.crouching = false; this.straddling = false;
@@ -118,9 +120,18 @@
     get score() { return Math.floor(this.distance * 10) + this.itemScore; }
     get headHeight() { return (this.crouching && this.jumpY === 0 ? CONFIG.CROUCH_HEIGHT : CONFIG.PASSAGE_HEIGHT) + this.jumpY; }
     get handHeight() { return CONFIG.STANDING_REACH + this.jumpY; }
-    get area() { return areaAt(this.distance); }
+    areaAt(distance) { return this.route[Math.floor(Math.max(0, distance) / CONFIG.AREA_LENGTH) % this.route.length]; }
+    get area() { return this.mode === 'tutorial' ? areaAt(this.distance) : this.areaAt(this.distance); }
     get nextEvent() { return this.events.filter(e => !e.completed && !e.collected).reduce((first, event) => !first || event.z < first.z ? event : first, null); }
-    start() { this.reset(); this.mode = 'playing'; }
+    start() {
+      this.reset(); this.mode = 'playing';
+      // A fresh Fisher–Yates route per run; tutorial never uses this shuffled route.
+      for (let i = this.route.length - 1; i > 0; i--) {
+        const j = Math.floor(this.random() * (i + 1));
+        [this.route[i], this.route[j]] = [this.route[j], this.route[i]];
+      }
+      this.nextChallengeDistance = 350 + this.random() * 180;
+    }
     startTutorial() { this.reset(); this.mode = 'tutorial'; this.speed = CONFIG.TUTORIAL_SPEED; this.setupLesson(); }
     title() { this.reset(); this.mode = 'title'; }
     setupLesson() {
@@ -192,17 +203,25 @@
       const interval = Math.max(min + this.random() * (max - min), 2 * CONFIG.JUMP_POWER / CONFIG.GRAVITY + CONFIG.ACTION_BUFFER);
       let arrival = Math.max(this.elapsed + CONFIG.MIN_REACTION_TIME, this.planTime + interval, this.planEndTime + CONFIG.ACTION_BUFFER + 0.5);
       const baseLoad = Math.max(this.planLoad, this.strain);
-      let target = this.futureDistance(arrival - this.elapsed), area = areaAt(target);
-      let endurance = null;
+      let target = this.futureDistance(arrival - this.elapsed), area = this.areaAt(target);
+      let endurance = null, windup = null;
       // An occasional visibly long low passage creates genuine 80–95% fatigue.
       // It starts after full recovery and is followed by standing-only recovery events.
       if (this.distance >= this.nextChallengeDistance && arrival >= this.recoveryUntil) {
         const ready = Math.max(arrival, this.planTime + (baseLoad + 1) / CONFIG.STRAIN_RECOVERY_RATE);
-        const readyTarget = this.futureDistance(ready - this.elapsed), readyArea = areaAt(readyTarget);
-        const corridors = OBSTACLES.filter(d => ['strap', 'rack-bar', 'bus-roof'].includes(d.id) && d.areas.includes(readyArea.id) && d.id !== this.lastId);
+        const readyTarget = this.futureDistance(ready - this.elapsed), readyArea = this.areaAt(readyTarget);
+        const corridors = OBSTACLES.filter(d => ['strap', 'rack-bar', 'bus-roof', 'club-door', 'tatami', 'old-entry'].includes(d.id) && d.areas.includes(readyArea.id) && d.id !== this.lastId);
         if (corridors.length) {
           endurance = { ...corridors[Math.floor(this.random() * corridors.length)], duration: CONFIG.ENDURANCE_SECONDS, endurance: true };
           arrival = ready; target = readyTarget; area = readyArea;
+          const safeDoors = OBSTACLES.filter(d => d.rule === 'overhead' && !d.low && d.areas.includes(area.id) && d.id !== this.lastId);
+          if (safeDoors.length && this.random() < 0.8) {
+            const d = safeDoors[Math.floor(this.random() * safeDoors.length)];
+            windup = this.makeObstacle(d, d.min, target - this.distance);
+            Object.assign(windup, { areaId: area.id, arrivalTime: arrival, plannedCost: 0, fatigueWindup: true });
+            // This short standing gap preserves avoidable waste, but a brief accidental tap recovers.
+            arrival += 1.3; target = this.futureDistance(arrival - this.elapsed);
+          }
         }
       }
       const forecast = Math.max(0, baseLoad - Math.max(0, arrival - this.planTime) * CONFIG.STRAIN_RECOVERY_RATE);
@@ -211,13 +230,20 @@
         return def.id !== this.lastId && def.areas.includes(area.id) && (cost === 0 || arrival >= this.recoveryUntil && forecast + cost <= CONFIG.PLANNER_STRAIN_LIMIT);
       };
       const obstacles = OBSTACLES.filter(legal), items = ITEMS.filter(d => d.max <= CONFIG.MAX_REACH && legal(d));
-      let kind = this.random() < (area.id === 'park' ? 0.78 : 0.6) ? 'obstacle' : 'item';
+      let kind = this.random() < (area.id === 'park' ? 0.72 : 0.68) ? 'obstacle' : 'item';
       if (this.kindRun >= 3 && kind === this.lastKind) kind = kind === 'item' ? 'obstacle' : 'item';
       if (!obstacles.length) kind = 'item'; if (!items.length) kind = 'obstacle';
       const choices = kind === 'obstacle' ? obstacles : items;
       if (!endurance && !choices.length) { this.spawnTimer = 0.25; return; }
-      const weighted = area.id === 'park' && kind === 'obstacle' ? choices.flatMap(d => ['panda', 'elephant', 'turtle', 'horse'].includes(d.id) ? [d, d, d, d] : [d]) : choices;
-      const def = endurance || weighted[Math.floor(this.random() * weighted.length)], z = target - this.distance;
+      // Choose action groups first: many item skins must not crowd out jumping or straddling.
+      const groups = new Map();
+      for (const choice of choices) {
+        const action = kind === 'item' ? (choice.min > CONFIG.STANDING_REACH ? 'high-item' : 'low-item') : choice.rule === 'overhead' ? (choice.low ? 'crouch' : 'standing') : choice.rule;
+        if (!groups.has(action)) groups.set(action, []); groups.get(action).push(choice);
+      }
+      const buckets = [...groups.values()];
+      const bucket = buckets[Math.floor(this.random() * buckets.length)] || [];
+      const def = endurance || bucket[Math.floor(this.random() * bucket.length)], z = target - this.distance;
       if (endurance) kind = 'obstacle';
       const height = def.min === Infinity ? Infinity : def.min + Math.floor(this.random() * (def.max - def.min + 1));
       const event = kind === 'obstacle' ? this.makeObstacle(def, height, z) : this.makeItem(def, z);
@@ -228,9 +254,10 @@
         const peak = this.crouchLoad(CONFIG.ENDURANCE_SECONDS + CONFIG.ENDURANCE_MARGIN);
         this.planTime = this.planEndTime; this.planLoad = peak;
         this.recoveryUntil = this.planEndTime + (peak - CONFIG.RECOVERY_TARGET) / CONFIG.STRAIN_RECOVERY_RATE + CONFIG.ACTION_BUFFER;
-        this.nextChallengeDistance = target + 1000 + this.random() * 400; this.challenges++;
+        this.nextChallengeDistance = target + 900 + this.random() * 300; this.challenges++;
         event.plannedCost = peak;
       } else { this.planTime = arrival; this.planLoad = forecast + event.plannedCost; }
+      if (windup) this.events.push(windup);
       this.events.push(event); this.lastId = def.id;
       this.kindRun = kind === this.lastKind ? this.kindRun + 1 : 1; this.lastKind = kind;
       // Keep the lookahead bounded when a long passage adds time to the schedule.
@@ -287,7 +314,7 @@
     }
     checkStrain(cause) {
       if (this.mode !== 'playing' || this.strain < 100) return;
-      const reason = cause === 'crouch' ? 'ヘルニアになりました' : cause === 'straddle' ? 'またぎのしすぎで体への負担が限界に達しました！' : cause === 'jump' ? 'ジャンプのしすぎで足首をねんざしました！' : '体への負担が限界に達しました！';
+      const reason = cause === 'crouch' ? 'ヘルニアになりました' : cause === 'straddle' ? '股関節が限界を迎えました' : cause === 'jump' ? 'ジャンプのしすぎで足首をねんざしました！' : '体への負担が限界に達しました！';
       this.gameOver(reason);
     }
     collisionReason(event) {

@@ -1,6 +1,8 @@
 work/
-node_modules/
+node_modules
 __pycache__/
 188cm_run_game/
 playwright-report/
 test-results/
+*-debug.log
+.firebase/
