@@ -1,5 +1,7 @@
 # タイトル・チュートリアル・効果音の修正報告
 
+> この文書はPR #5の記録です。最新の音量・描画・BGMは [GRAPHICS_SOUND_REPORT.md](GRAPHICS_SOUND_REPORT.md) を参照してください。
+
 2026年10月13日。PR #4をマージしたmain（`6209718`）を確認し、`feat/menu-sound-fix`で修正しました。元のコードはバックアップタグ`before-menu-sound-fix-20261013`に保持しています。
 
 ## 調査で分かったこと

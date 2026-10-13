@@ -1,0 +1,107 @@
+[
+  {
+    "before": {
+      "hidden": true,
+      "frames": 10,
+      "draws": 10,
+      "distance": 8.288415910865744,
+      "paused": true,
+      "context": "suspended",
+      "music": false,
+      "notes": 0,
+      "voices": 0
+    },
+    "after": {
+      "hidden": true,
+      "frames": 10,
+      "draws": 10,
+      "distance": 8.288415910865744,
+      "paused": true,
+      "context": "suspended",
+      "music": false,
+      "notes": 0,
+      "voices": 0
+    },
+    "resumed": {
+      "hidden": false,
+      "frames": 194,
+      "draws": 63,
+      "distance": 9.095150413243973,
+      "paused": false,
+      "context": "running",
+      "music": true,
+      "notes": 0,
+      "voices": 0
+    }
+  },
+  {
+    "before": {
+      "hidden": true,
+      "frames": 195,
+      "draws": 64,
+      "distance": 9.364878108777445,
+      "paused": true,
+      "context": "suspended",
+      "music": false,
+      "notes": 0,
+      "voices": 0
+    },
+    "after": {
+      "hidden": true,
+      "frames": 195,
+      "draws": 64,
+      "distance": 9.364878108777445,
+      "paused": true,
+      "context": "suspended",
+      "music": false,
+      "notes": 0,
+      "voices": 0
+    },
+    "resumed": {
+      "hidden": false,
+      "frames": 360,
+      "draws": 113,
+      "distance": 10.443667215566393,
+      "paused": false,
+      "context": "running",
+      "music": true,
+      "notes": 2,
+      "voices": 0
+    }
+  },
+  {
+    "before": {
+      "hidden": true,
+      "frames": 362,
+      "draws": 115,
+      "distance": 11.794579984336508,
+      "paused": true,
+      "context": "suspended",
+      "music": false,
+      "notes": 0,
+      "voices": 0
+    },
+    "after": {
+      "hidden": true,
+      "frames": 362,
+      "draws": 115,
+      "distance": 11.794579984336508,
+      "paused": true,
+      "context": "suspended",
+      "music": false,
+      "notes": 0,
+      "voices": 0
+    },
+    "resumed": {
+      "hidden": false,
+      "frames": 496,
+      "draws": 165,
+      "distance": 12.60757329936113,
+      "paused": false,
+      "context": "running",
+      "music": true,
+      "notes": 1,
+      "voices": 1
+    }
+  }
+]
