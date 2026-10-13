@@ -3,10 +3,10 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <meta name="theme-color" content="#111c29">
+  <meta name="theme-color" content="#09090C">
   <meta name="description" content="身長188cmの視点で、街の入口を走り抜ける。オリジナルのCanvasランゲーム。">
   <title>188cm RUN | 頭上に、気をつけて。</title>
-  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' rx='14' fill='%23111c29'/%3E%3Ctext x='32' y='43' text-anchor='middle' font-family='sans-serif' font-weight='900' font-size='32' fill='%23cff56b'%3E188%3C/text%3E%3C/svg%3E">
+  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' rx='14' fill='%2309090C'/%3E%3Ctext x='32' y='43' text-anchor='middle' font-family='sans-serif' font-weight='900' font-size='32' fill='%23E58BA2'%3E188%3C/text%3E%3C/svg%3E">
   <link rel="stylesheet" href="style.css">
 </head>
 <body>
@@ -39,9 +39,10 @@
       <div class="countdown" id="countdown" hidden aria-live="polite">3</div>
       <div class="focus-tip" id="focus-tip" hidden>画面をクリックして操作</div>
     </section>
+    <nav class="touch-controls" aria-label="タッチ操作"><button id="touch-crouch">しゃがむ（長押し）</button><button id="touch-straddle">またぐ（長押し）</button><button id="touch-jump">ジャンプ</button><button id="touch-grab">取る</button></nav>
     <footer class="controls"><div><kbd>↓</kbd><span> / </span><kbd>Shift</kbd><span> 長押しでしゃがむ</span></div><div><kbd>S</kbd><span> 長押しでまたぐ</span></div><div><kbd>Space</kbd><span> ジャンプ</span></div><div><kbd>E</kbd><span> アイテム取得</span></div><div><kbd>Esc</kbd><span> 一時停止</span></div><button class="text-button" id="sound-button" aria-pressed="false">音：オフ</button><button class="text-button" id="effects-button" aria-pressed="false">演出：通常</button></footer>
     <p class="footnote">アイテムは近づいてE。取り逃がすと終了します。<span>病名・負荷・身体能力はゲーム内の演出です。遊具や標識への現実の行動は勧めません。</span></p>
-    <nav class="touch-controls" aria-label="タッチ操作"><button id="touch-crouch">しゃがむ（長押し）</button><button id="touch-straddle">またぐ（長押し）</button><button id="touch-jump">ジャンプ</button><button id="touch-grab">取る</button></nav>
+
   </main>
   <dialog id="ranking-dialog" aria-labelledby="ranking-title">
     <div class="ranking-heading"><h2 id="ranking-title">友達とのランキング</h2><button id="ranking-close" class="text-button" aria-label="ランキングを閉じる">閉じる ×</button></div>
@@ -49,7 +50,7 @@
     <p class="distance-best"></p><p id="ranking-status" role="status" aria-live="polite"></p>
     <div class="ranking-scroll"><table><thead><tr><th>順位</th><th>ニックネーム</th><th>距離</th><th>理解度</th></tr></thead><tbody id="ranking-rows"></tbody></table></div>
     <div class="ranking-actions"><button id="ranking-refresh" class="primary compact">ランキングを更新</button><button id="ranking-send" class="text-button">記録を再送信</button></div>
-    <form id="nickname-form"><label for="nickname">ニックネーム（1〜16文字）</label><div class="nickname-row"><input id="nickname" type="text" maxlength="32" autocomplete="off" placeholder="例：たまき" aria-describedby="nickname-help nickname-error"><button class="primary compact" type="submit">名前を保存</button></div><small id="nickname-help">本名・メールアドレスは不要です。同じ名前でも別の参加者として登録されます。</small><p id="nickname-error" role="alert"></p></form>
+    <form id="nickname-form"><label for="nickname">ニックネーム（1〜16文字）</label><div class="nickname-row"><input id="nickname" type="text" maxlength="32" autocomplete="off" placeholder="例：RUNNER188" aria-describedby="nickname-privacy nickname-help nickname-error"><button class="primary compact" type="submit">名前を保存</button></div><p id="nickname-privacy">※本名は入力しないでください。ニックネームはランキングで公開されます。</p><small id="nickname-help">本名・メールアドレスは不要です。同じ名前でも別の参加者として登録されます。</small><p id="nickname-error" role="alert"></p></form>
     <button id="nickname-skip" class="text-button" hidden>名前を付けずに遊ぶ（記録はこの端末のみ）</button>
     <small class="ranking-note">名前と自己ベストを公開します。ブラウザのデータを消すと別の参加者になります。保存領域が使えない場合、名前や参加者IDは次回に引き継がれません。</small>
   </dialog>

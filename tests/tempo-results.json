@@ -1,0 +1,42 @@
+{
+  "before": {
+    "samples": 10049,
+    "meanBlank": 1.2523257045655638,
+    "byStage": {
+      "early": {
+        "samples": 10,
+        "mean": 2.9203917375365243
+      },
+      "middle": {
+        "samples": 30,
+        "mean": 2.4082571095175593
+      },
+      "late": {
+        "samples": 10009,
+        "mean": 1.2471944624356543
+      }
+    }
+  },
+  "after": {
+    "samples": 10080,
+    "meanBlank": 1.0633155356117452,
+    "byStage": {
+      "early": {
+        "samples": 10,
+        "mean": 2.4832289795555864
+      },
+      "middle": {
+        "samples": 33,
+        "mean": 2.224010064493306
+      },
+      "late": {
+        "samples": 10037,
+        "mean": 1.0580846843720784
+      }
+    }
+  },
+  "blankReductionPercent": 15.092732526750051,
+  "baselineCommit": "5bf1db0",
+  "baselineTag": "before-glass-update-20261013",
+  "method": "10 seeds, 2000 events each; positive gaps under 5s between normal events, excluding endurance/windup/recovery"
+}

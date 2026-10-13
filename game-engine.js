@@ -12,7 +12,7 @@
     CROUCH_RESET_SECONDS: 1, STRAIN_RECOVERY_RATE: 8,
     JUMP_STRAIN: 12, ANKLE_RECOVERY_RATE: 2,
     ITEM_REACH_TIME: 0.42, GRAB_BUFFER_SECONDS: 0.4, REACH_TOLERANCE: 2,
-    MIN_REACTION_TIME: 3.4, ACTION_BUFFER: 0.3, PLANNER_STRAIN_LIMIT: 55, ENDURANCE_SECONDS: 3.9, ENDURANCE_MARGIN: 0.3, RECOVERY_TARGET: 20,
+    MIN_REACTION_TIME: 3.4, ACTION_BUFFER: 0.3, TEMPO_FACTOR: 0.88, TRAIN_SECONDS: 0.75, PLANNER_STRAIN_LIMIT: 55, ENDURANCE_SECONDS: 3.9, ENDURANCE_MARGIN: 0.3, RECOVERY_TARGET: 20,
     AREA_LENGTH: 180, SPAWN_DISTANCE: 100, FIXED_STEP: 1 / 120
   });
   const SPEED_POINTS = [[0, 1], [100, 1.4], [200, 1.9], [300, 2.4], [500, 3.1], [800, 3.5]];
@@ -67,7 +67,7 @@
     { id: 'cone', name: 'カラーコーン', style: 'cone', rule: 'straddle', min: 50, max: 50, width: 38, areas: ['street', 'school'] },
     ...[['panda', 'パンダ', 45], ['elephant', 'ゾウ', 50], ['turtle', 'カメ', 35], ['horse', 'ウマ', 55]].map(([id, animal, height]) =>
       ({ id, name: animal + 'のスプリング遊具', style: id, rule: 'jump', min: height, max: height, width: 130, areas: ['park'] })),
-    { id: 'mini-train', name: 'ミニ電車', style: 'mini-train', rule: 'straddle', min: 70, max: 70, width: 66, areas: ['park', 'street'] },
+    { id: 'mini-train', name: 'ミニ電車', style: 'mini-train', rule: 'straddle', min: 70, max: 70, width: 66, duration: CONFIG.TRAIN_SECONDS, tutorialDuration: 0.16, areas: ['park', 'street'] },
     { id: 'suitcase', name: 'スーツケース', style: 'suitcase', rule: 'straddle', min: 65, max: 65, width: 40, areas: ['station', 'bus', 'street'] },
     { id: 'double-cone', name: 'カラーコーン2個', style: 'double-cone', rule: 'jump', min: 50, max: 50, width: 130, areas: ['street', 'school'] },
     { id: 'vault', name: '跳び箱5段', style: 'vault', rule: 'straddle', min: 75, max: 75, width: 64, areas: ['school'] },
@@ -110,7 +110,7 @@
       this.crouchStrain = 0; this.ankleStrain = 0; this.crouchEffort = 0; this.uprightTime = 0;
       this.jumpY = 0; this.jumpVelocity = 0; this.crouching = false; this.straddling = false;
       this.speed = CONFIG.INITIAL_SPEED; this.events = []; this.effects = [];
-      this.spawnTimer = 0.6; this.lastId = ''; this.kindRun = 0; this.lastKind = '';
+      this.spawnTimer = 0.6; this.lastAction = ''; this.lastId = ''; this.kindRun = 0; this.lastKind = '';
       this.elapsed = 0; this.reason = ''; this.paused = false; this.serial = 0;
       this.planTime = 0; this.planLoad = 0; this.planEndTime = 0; this.recoveryUntil = 0; this.nextChallengeDistance = 350; this.challenges = 0; this.completedEvents = 0;
       this.grabReservation = { remaining: 0, uid: null };
@@ -161,9 +161,9 @@
     makeObstacle(def, clearance = def.min, z = CONFIG.SPAWN_DISTANCE) {
       const rule = def.rule || 'overhead';
       const arrivalSpeed = this.mode === 'tutorial' ? CONFIG.TUTORIAL_SPEED : speedAt(this.distance + z);
-      const duration = def.duration ?? (rule === 'jump' ? 0.12 : rule === 'straddle' ? 0.16 : 0.32);
+      const duration = (this.mode === 'tutorial' ? def.tutorialDuration : undefined) ?? def.duration ?? (rule === 'jump' ? 0.12 : rule === 'straddle' ? 0.16 : 0.32);
       return { ...def, rule, kind: 'obstacle', clearance, height: clearance, z, width: def.width || 460,
-        length: arrivalSpeed * duration, uid: ++this.serial, failed: false, completed: false };
+        duration, length: def.id === 'mini-train' && this.mode !== 'tutorial' ? this.futureDistance(duration, this.distance + z) - (this.distance + z) : arrivalSpeed * duration, uid: ++this.serial, failed: false, completed: false };
     }
     makeItem(def, z = CONFIG.SPAWN_DISTANCE) {
       const min = def.min ?? (def.high ? 305 : 201), max = def.max ?? min;
@@ -174,9 +174,9 @@
         high: height > CONFIG.STANDING_REACH, reachDistance: arrivalSpeed * CONFIG.ITEM_REACH_TIME,
         uid: ++this.serial, collected: false, completed: false };
     }
-    futureDistance(seconds) {
+    futureDistance(seconds, start = this.distance) {
       // The speed curve depends only on distance. Integrate it to place events in arrival-time slots.
-      let distance = this.distance;
+      let distance = start;
       const step = 1 / 60;
       for (let t = 0; t < seconds - 1e-8; t += step) distance += speedAt(distance) * Math.min(step, seconds - t);
       return distance;
@@ -190,7 +190,7 @@
       if (def.rule === 'open') return 0;
       const jump = def.rule === 'jump' || (def.min ?? 0) > CONFIG.STANDING_REACH;
       if (jump) return CONFIG.JUMP_STRAIN + CONFIG.STRAIN_RECOVERY_RATE * (2 * CONFIG.JUMP_POWER / CONFIG.GRAVITY);
-      if (def.rule === 'straddle') return (0.16 + CONFIG.ACTION_BUFFER) * (CONFIG.STRADDLE_STRAIN_RATE + CONFIG.STRAIN_RECOVERY_RATE);
+      if (def.rule === 'straddle') return ((def.duration ?? 0.16) + CONFIG.ACTION_BUFFER) * (CONFIG.STRADDLE_STRAIN_RATE + CONFIG.STRAIN_RECOVERY_RATE);
       if (def.rule === 'overhead' && def.min < CONFIG.PASSAGE_HEIGHT) return (0.32 + CONFIG.ACTION_BUFFER) * (CONFIG.CROUCH_STRAIN_RATES[2] + CONFIG.STRAIN_RECOVERY_RATE);
       return 0;
     }
@@ -200,7 +200,9 @@
     }
     spawn() {
       const [min, max] = this.intervalRange();
-      const interval = Math.max(min + this.random() * (max - min), 2 * CONFIG.JUMP_POWER / CONFIG.GRAVITY + CONFIG.ACTION_BUFFER);
+      // Shorten ordinary slots by 12%; after airborne events retain the full landing margin.
+      const floor = this.lastAction === 'jump' ? 2 * CONFIG.JUMP_POWER / CONFIG.GRAVITY + CONFIG.ACTION_BUFFER : 0.95;
+      const interval = Math.max((min + this.random() * (max - min)) * CONFIG.TEMPO_FACTOR, floor);
       let arrival = Math.max(this.elapsed + CONFIG.MIN_REACTION_TIME, this.planTime + interval, this.planEndTime + CONFIG.ACTION_BUFFER + 0.5);
       const baseLoad = Math.max(this.planLoad, this.strain);
       let target = this.futureDistance(arrival - this.elapsed), area = this.areaAt(target);
@@ -259,6 +261,7 @@
       } else { this.planTime = arrival; this.planLoad = forecast + event.plannedCost; }
       if (windup) this.events.push(windup);
       this.events.push(event); this.lastId = def.id;
+      this.lastAction = def.rule === 'jump' || event.high ? 'jump' : def.rule || 'item';
       this.kindRun = kind === this.lastKind ? this.kindRun + 1 : 1; this.lastKind = kind;
       // Keep the lookahead bounded when a long passage adds time to the schedule.
       this.spawnTimer = Math.max(interval, this.planTime + interval - CONFIG.MIN_REACTION_TIME - this.elapsed);
