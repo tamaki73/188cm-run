@@ -29,6 +29,7 @@ jobs:
           node --check game-engine.js
           node --check game.js
           node --check ranking.js
+          node --check audio.js
           npm test
           node tests/virtual-player.cjs
       - name: Colab成果物の一致とHTTP起動の検証
@@ -54,4 +55,5 @@ jobs:
           node tests/iframe.cjs
           node tests/visual-scroll.cjs
           node tests/glass-browser.cjs
+          node tests/audio-browser.cjs
           npm run test:online

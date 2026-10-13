@@ -110,6 +110,7 @@
       this.crouchStrain = 0; this.ankleStrain = 0; this.crouchEffort = 0; this.uprightTime = 0;
       this.jumpY = 0; this.jumpVelocity = 0; this.crouching = false; this.straddling = false;
       this.speed = CONFIG.INITIAL_SPEED; this.events = []; this.effects = [];
+      this.soundEvents = []; this.gaitPhase = 0;
       this.spawnTimer = 0.6; this.lastAction = ''; this.lastId = ''; this.kindRun = 0; this.lastKind = '';
       this.elapsed = 0; this.reason = ''; this.paused = false; this.serial = 0;
       this.planTime = 0; this.planLoad = 0; this.planEndTime = 0; this.recoveryUntil = 0; this.nextChallengeDistance = 350; this.challenges = 0; this.completedEvents = 0;
@@ -135,6 +136,7 @@
     startTutorial() { this.reset(); this.mode = 'tutorial'; this.speed = CONFIG.TUTORIAL_SPEED; this.setupLesson(); }
     title() { this.reset(); this.mode = 'title'; }
     setupLesson() {
+      this.soundEvents = []; this.gaitPhase = 0;
       this.events = []; this.jumpY = 0; this.jumpVelocity = 0; this.crouching = false; this.straddling = false;
       this.crouchStrain = 0; this.ankleStrain = 0; this.crouchEffort = 0; this.uprightTime = 0;
       this.grabReservation = { remaining: 0, uid: null };
@@ -276,6 +278,7 @@
         this.checkLesson();
       }
       else this.checkStrain('jump');
+      if (this.mode !== 'gameover') this.emitSound('jump');
       return true;
     }
     grab() {
@@ -294,6 +297,7 @@
       if (!valid) return false;
       this.grabReservation = { remaining: 0, uid: null }; // Exactly one object per key press.
       reachable.collected = true; this.items++; const bonus = reachable.high ? 500 : 300; this.itemScore += bonus;
+      this.emitSound('collect', { high: reachable.high });
       this.effects.push({ type: 'collect', text: '+' + bonus, life: 1, seed: this.random(), high: reachable.high, height: reachable.height });
       if (this.mode === 'tutorial') this.lessonPass();
       return true;
@@ -318,14 +322,23 @@
     checkStrain(cause) {
       if (this.mode !== 'playing' || this.strain < 100) return;
       const reason = cause === 'crouch' ? 'ヘルニアになりました' : cause === 'straddle' ? '股関節が限界を迎えました' : cause === 'jump' ? 'ジャンプのしすぎで足首をねんざしました！' : '体への負担が限界に達しました！';
-      this.gameOver(reason);
+      this.gameOver(reason, 'fatigue');
     }
     collisionReason(event) {
       if (event.rule === 'jump' && this.straddling) return 'そこまでの柔軟性はありません';
       if (event.rule === 'straddle' && (this.jumpY > 0 || this.jumpVelocity > 0)) return 'そこまでの跳躍力はありません';
       return event.name + (event.rule === 'overhead' ? 'に頭をぶつけました！' : 'にぶつかりました！');
     }
-    gameOver(reason) { this.reason = reason; this.mode = 'gameover'; this.crouching = false; this.straddling = false; }
+    emitSound(name, detail = {}) {
+      // Bounded even when the engine runs without an audio consumer (Colab/tests).
+      if (this.soundEvents.length >= 16) this.soundEvents.shift();
+      this.soundEvents.push({ name, time: this.elapsed, ...detail });
+    }
+    gameOver(reason, cause = 'miss') {
+      if (this.mode === 'gameover') return;
+      this.reason = reason; this.mode = 'gameover'; this.crouching = false; this.straddling = false;
+      this.emitSound('over', { cause });
+    }
     update(dt, crouchHeld = false, straddleHeld = false) {
       if (!['playing', 'tutorial'].includes(this.mode) || this.paused) return;
       let remaining = Math.max(0, dt);
@@ -338,6 +351,8 @@
       this.speed = this.mode === 'tutorial' ? CONFIG.TUTORIAL_SPEED : speedAt(this.distance);
       this.distance += this.speed * dt;
       const oldHead = this.headHeight, oldFoot = this.jumpY;
+      const wasAirborne = this.jumpY > 0 || this.jumpVelocity > 0;
+      const oldPose = this.crouching ? 'crouch' : this.straddling ? 'straddle' : 'stand';
       if (this.jumpVelocity !== 0 || this.jumpY > 0) {
         this.jumpY = Math.max(0, this.jumpY + this.jumpVelocity * dt - CONFIG.GRAVITY * dt * dt / 2);
         this.jumpVelocity -= CONFIG.GRAVITY * dt;
@@ -347,6 +362,16 @@
       const grounded = this.jumpY === 0 && this.jumpVelocity === 0;
       this.crouching = crouchHeld && grounded;
       this.straddling = !crouchHeld && straddleHeld && grounded;
+      const pose = this.crouching ? 'crouch' : this.straddling ? 'straddle' : 'stand';
+      if (grounded && wasAirborne) { this.emitSound('land'); this.gaitPhase = 0; }
+      else if (pose !== oldPose && grounded) this.emitSound(pose);
+      if (grounded && !wasAirborne) {
+        const previous = Math.floor(this.gaitPhase / Math.PI);
+        // Integrate cadence instead of elapsed*speed, keeping animation/audio in phase.
+        this.gaitPhase += dt * (10 + this.speed * 0.17) * (this.straddling ? 0.60 : this.crouching ? 0.82 : 1);
+        const contact = Math.floor(this.gaitPhase / Math.PI);
+        if (contact > previous) this.emitSound('foot', { foot: contact % 2 ? 'left' : 'right', crouching: this.crouching, straddling: this.straddling });
+      }
       if (this.crouching) {
         this.uprightTime = 0; this.crouchEffort += dt;
         const rate = this.crouchEffort <= CONFIG.CROUCH_STAGE_SECONDS[0] ? CONFIG.CROUCH_STRAIN_RATES[0] : this.crouchEffort <= CONFIG.CROUCH_STAGE_SECONDS[1] ? CONFIG.CROUCH_STRAIN_RATES[1] : CONFIG.CROUCH_STRAIN_RATES[2];
@@ -378,7 +403,8 @@
             event.rule === 'straddle' ? this.straddling && event.height <= CONFIG.INSEAM * 0.85 && event.width <= CONFIG.MAX_STRADDLE_WIDTH : foot >= event.height);
           if (!valid) {
             event.failed = true;
-            if (this.mode === 'playing') { this.gameOver(this.collisionReason(event)); return; }
+            if (this.mode === 'playing') { this.gameOver(this.collisionReason(event), 'collision'); return; }
+            this.emitSound('collision');
             this.failLesson('もう一度！タイミングと姿勢を確かめましょう。'); break;
           }
           if (this.mode === 'tutorial' && this.tutorial.step === 1 && (this.crouching || this.straddling || this.jumpY > 0)) event.failed = true;

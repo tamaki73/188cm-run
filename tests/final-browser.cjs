@@ -47,10 +47,12 @@ const fs = require('node:fs');
     await page.evaluate(()=>{const g=__RUN188_TEST__.model;g.elapsed=102;g.paused=false;g.crouchStrain=95.5;__RUN188_TEST__.syncUI();g.paused=true;});
     assert.equal(await page.evaluate(()=>__frequencies.filter(f=>f===620).length),count);
     console.log('PASS: exact fatigue-color thresholds, warnings, real Web Audio alarm, reduced effects and saved preference');
-    await page.evaluate(()=>{const g=__RUN188_TEST__.model;g.start();g.spawnTimer=100;g.events=[g.makeItem({...Run188.ITEMS.find(d=>d.id==='towel'),min:325,max:325},9)];document.getElementById('game').focus();});
+    await page.evaluate(()=>{const g=__RUN188_TEST__.model;g.start();g.spawnTimer=100;g.events=[g.makeItem({...Run188.ITEMS.find(d=>d.id==='towel'),min:325,max:325},9)];window.__inputUpdate=g.update;g.update=()=>{};document.getElementById('game').focus();});
+    // Keep the input phase at t=0 so overloaded CI cannot turn the early E into a later press.
     await page.keyboard.press('Space'); await page.keyboard.press('e');
     assert.equal(await page.evaluate(()=>__RUN188_TEST__.model.items),0);
     assert.ok(await page.evaluate(()=>__RUN188_TEST__.model.grabReservation.remaining>0));
+    await page.evaluate(()=>{__RUN188_TEST__.model.update=window.__inputUpdate;delete window.__inputUpdate;});
     await page.waitForFunction(()=>__RUN188_TEST__.model.items===1,null,{timeout:2000});
     await page.evaluate(()=>{const g=__RUN188_TEST__.model;g.events=[g.makeItem({...Run188.ITEMS.find(d=>d.id==='towel'),min:325,max:325},0)];g.update(.05);});
     assert.equal(await page.evaluate(()=>__RUN188_TEST__.model.items),1);

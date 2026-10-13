@@ -2,7 +2,11 @@
 
 2026年10月13日。Node.js / Python / Chromium / Playwrightを使用。ゲーム本体とFirebase未設定時の挙動をローカルで確認し、Firebaseの実ルール・複数ブラウザ共有もGitHub Actionsのローカルエミュレーターで成功を確認しました。プロジェクト `cm-run` の本番用Web設定は反映済みです。本番接続はこの環境の通信制限により未確認です。
 
-## 今回の追加確認
+## 追加修正20〜22の確認
+
+[AUDIO_UPDATE_REPORT.md](AUDIO_UPDATE_REPORT.md)に追加15項目の結果、参考の描画計測、PC/スマートフォン画像をまとめています。`tests/audio.test.cjs`は接地周期・空中停止・着地・取得・姿勢変化・終了原因を検証し、`tests/audio-browser.cjs`は実AudioContext、タッチ、設定保存、6音上限と実波形、5種類の画面サイズを検証します。Safariや実機のスピーカー聴感は未確認です。
+
+## 前回の追加確認
 
 [UPDATE_REPORT.md](UPDATE_REPORT.md) に全変更をまとめています。新しい `tests/glass-browser.cjs` では、バーガンディのガラス表示、指定の注意文の入力前・入力中の表示、1〜3位と自分の行、実キーによる長い電車の通過/途中解除、DPR2の描画、PC画面の拡大、390pxの縦横比と横はみ出し、ぼかしなし代替、演出停止を確認しました。
 

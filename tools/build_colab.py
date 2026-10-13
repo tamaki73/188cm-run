@@ -8,7 +8,7 @@ ROOT = Path(__file__).resolve().parent.parent
 def bundle_html():
     html = (ROOT / 'index.html').read_text(encoding='utf-8')
     html = html.replace('<link rel="stylesheet" href="style.css">', '<style>\n' + (ROOT / 'style.css').read_text(encoding='utf-8') + '\n</style>')
-    for filename in ('online-config.js', 'ranking.js', 'game-engine.js', 'game.js'):
+    for filename in ('online-config.js', 'ranking.js', 'game-engine.js', 'audio.js', 'game.js'):
         source = (ROOT / filename).read_text(encoding='utf-8')
         html = html.replace(f'<script src="{filename}"></script>', '<script>\n' + source + '\n</script>')
     return html
