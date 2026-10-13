@@ -7,12 +7,12 @@
     VERTICAL_JUMP: 75, STANDING_REACH: 252, MAX_REACH: 327,
     INITIAL_SPEED: 16, MAX_SPEED: 56, TUTORIAL_SPEED: 9,
     GRAVITY: 600, JUMP_POWER: 300, CROUCH_HEIGHT: 122,
-    MAX_STRADDLE_WIDTH: 80, STRADDLE_STRAIN_RATE: 10,
-    CROUCH_STRAIN_RATES: [8, 14, 22], CROUCH_STAGE_SECONDS: [2, 4],
-    CROUCH_RESET_SECONDS: 1, STRAIN_RECOVERY_RATE: 6,
-    JUMP_STRAIN: 8, ANKLE_RECOVERY_RATE: 2,
-    ITEM_REACH_TIME: 0.30, REACH_TOLERANCE: 2,
-    MIN_REACTION_TIME: 3.4, ACTION_BUFFER: 0.3, PLANNER_STRAIN_LIMIT: 45,
+    MAX_STRADDLE_WIDTH: 80, STRADDLE_STRAIN_RATE: 20,
+    CROUCH_STRAIN_RATES: [15, 25, 35], CROUCH_STAGE_SECONDS: [2, 4],
+    CROUCH_RESET_SECONDS: 1, STRAIN_RECOVERY_RATE: 8,
+    JUMP_STRAIN: 12, ANKLE_RECOVERY_RATE: 2,
+    ITEM_REACH_TIME: 0.42, GRAB_BUFFER_SECONDS: 0.4, REACH_TOLERANCE: 2,
+    MIN_REACTION_TIME: 3.4, ACTION_BUFFER: 0.3, PLANNER_STRAIN_LIMIT: 55, ENDURANCE_SECONDS: 3.9, ENDURANCE_MARGIN: 0.3, RECOVERY_TARGET: 20,
     AREA_LENGTH: 180, SPAWN_DISTANCE: 100, FIXED_STEP: 1 / 120
   });
   const SPEED_POINTS = [[0, 1], [100, 1.4], [200, 1.9], [300, 2.4], [500, 3.1], [800, 3.5]];
@@ -36,20 +36,7 @@
     { id: 'home', name: '自宅', sky: '#b5a6a0', floor: '#685e48', accent: '#d6bc91' }
   ];
   const areaAt = distance => AREAS[Math.floor(Math.max(0, distance) / CONFIG.AREA_LENGTH) % AREAS.length];
-  const OBSTACLES = [
-    { id: 'train', name: '通勤電車', style: 'train', low: false },
-    { id: 'subway', name: '地下通路', style: 'concrete', low: false },
-    { id: 'loading', name: '商業施設の搬入口', style: 'loading', low: false },
-    { id: 'old', name: '古い建物の連絡通路', style: 'brick', low: false },
-    { id: 'parking', name: '駐車場の歩行者通路', style: 'parking', low: false },
-    { id: 'low-train', name: '電車の入口', style: 'train', low: true },
-    { id: 'warehouse', name: '倉庫の梁', style: 'warehouse', low: true },
-    { id: 'low-subway', name: '地下通路の梁', style: 'concrete', low: true },
-    { id: 'gym', name: '体育館の器具庫', style: 'gym', low: true },
-    { id: 'stairs', name: '階段下の通路', style: 'stairs', low: true },
-    { id: 'shop', name: '店舗の搬入口', style: 'loading', low: true },
-    { id: 'service', name: '設備通路', style: 'service', low: true }
-  ];
+  const OBSTACLES = [];
   const ITEMS = [
     { id: 'drink', prop: 'vending', object: 'drink', high: false },
     { id: 'low-hat', prop: 'locker', object: 'hat', high: false },
@@ -63,36 +50,26 @@
     { id: 'storage', prop: 'storage', object: 'trinket', high: true },
     { id: 'sign', prop: 'sign', object: 'trinket', high: true }
   ];
-  // Preserve the original fixtures, and add student-life events to the same catalogs.
-  for (const def of OBSTACLES) {
-    def.rule = 'overhead'; def.min = def.low ? 182 : 190; def.max = def.low ? 187 : 194;
-    def.areas = ['train', 'subway', 'low-train', 'low-subway', 'stairs'].includes(def.id) ? ['station'] :
-      ['loading', 'shop'].includes(def.id) ? ['store'] : ['warehouse', 'gym'].includes(def.id) ? ['school'] : def.id === 'parking' ? ['street'] : ['home'];
-  }
+  // Curated, visually distinct obstacles for the student-life route.
   const overhead = (id, name, style, min, max, areas) => ({ id, name, style, min, max, areas, rule: 'overhead', low: min < CONFIG.PASSAGE_HEIGHT });
   OBSTACLES.push(
     overhead('strap', '電車の吊り革', 'strap', 160, 165, ['station']),
     overhead('rack-bar', '電車の網棚', 'rack', 180, 185, ['station']),
     overhead('bus-roof', 'バスの後方天井', 'bus', 180, 185, ['bus']),
     overhead('club-door', '古い部室の引き戸', 'club', 175, 180, ['school']),
-    overhead('izakaya', '古い居酒屋の鴨居', 'izakaya', 175, 180, ['street']),
-    overhead('old-class', '古い教室のドア', 'classroom', 185, 185, ['school']),
     overhead('tatami', '和室の鴨居', 'tatami', 175, 180, ['home']),
     overhead('new-class', '新しい教室のドア', 'classroom', 200, 200, ['school']),
     overhead('convenience', 'コンビニの自動ドア', 'auto-door', 200, 210, ['store']),
     overhead('supermarket', 'スーパーの自動ドア', 'supermarket', 200, 210, ['store']),
-    overhead('lecture', '大学の講義室', 'lecture', 200, 200, ['school']),
     { id: 'ticket-gate', name: '駅の自動改札', style: 'gate', rule: 'open', min: Infinity, max: Infinity, areas: ['station'] },
     { id: 'lane-pole', name: '車線分離ポール', style: 'pole', rule: 'straddle', min: 60, max: 75, width: 20, areas: ['street'] },
-    { id: 'cone', name: '部活動のカラーコーン', style: 'cone', rule: 'straddle', min: 50, max: 50, width: 38, areas: ['street', 'school'] },
-    { id: 'marker', name: '体育のマーカー', style: 'marker', rule: 'straddle', min: 15, max: 15, width: 35, areas: ['school'] },
-    { id: 'divider', name: '通学路の仕切り', style: 'divider', rule: 'straddle', min: 35, max: 35, width: 60, areas: ['street'] },
-    { id: 'park-pole', name: '公園の小さなポール', style: 'park-pole', rule: 'straddle', min: 65, max: 65, width: 22, areas: ['park'] },
+    { id: 'cone', name: 'カラーコーン', style: 'cone', rule: 'straddle', min: 50, max: 50, width: 38, areas: ['street', 'school'] },
     ...[['panda', 'パンダ', 45], ['elephant', 'ゾウ', 50], ['turtle', 'カメ', 35], ['horse', 'ウマ', 55]].map(([id, animal, height]) =>
       ({ id, name: animal + 'のスプリング遊具', style: id, rule: 'jump', min: height, max: height, width: 130, areas: ['park'] })),
-    { id: 'balance', name: '公園の平均台', style: 'balance', rule: 'jump', min: 30, max: 30, width: 155, areas: ['park'] },
-    { id: 'play-base', name: '遊具の土台', style: 'play-base', rule: 'jump', min: 40, max: 40, width: 140, areas: ['park'] },
-    { id: 'hurdle', name: '体育のミニハードル', style: 'hurdle', rule: 'jump', min: 30, max: 50, width: 140, areas: ['school'] }
+    { id: 'mini-train', name: 'ミニ電車', style: 'mini-train', rule: 'straddle', min: 70, max: 70, width: 66, areas: ['park', 'street'] },
+    { id: 'suitcase', name: 'スーツケース', style: 'suitcase', rule: 'straddle', min: 65, max: 65, width: 40, areas: ['station', 'bus', 'street'] },
+    { id: 'double-cone', name: 'カラーコーン2個', style: 'double-cone', rule: 'jump', min: 50, max: 50, width: 130, areas: ['street', 'school'] },
+    { id: 'vault', name: '跳び箱5段', style: 'vault', rule: 'straddle', min: 75, max: 75, width: 64, areas: ['school'] },
   );
   const objectNames = { drink: '飲み物', hat: '帽子', trinket: '小物', book: '本', wallet: '財布', ball: 'ボール', towel: 'タオル' };
   for (const def of ITEMS) {
@@ -117,10 +94,10 @@
     ['4つの動作を試そう', '↓ / Shiftでしゃがむ、Sを押してまたぐ、Spaceでジャンプ、Eで手を伸ばす。4つを試しましょう。'],
     ['立ったまま通過しよう', '新しい教室の入口には頭上の余裕があります。何も押さず、立ったまま抜けましょう。'],
     ['頭上を避けよう', '吊り革の輪が頭に重なります。↓ / Shiftを、通過が終わるまで押し続けましょう。'],
-    ['脚を広げてまたごう', '細いポールが迫ります。Sを押して脚を左右に広げ、抜けるまで維持しましょう。'],
-    ['足元を上げて飛び越えよう', 'パンダの遊具に近づいたらSpace。足が遊具の上を通るよう、少し手前でジャンプしましょう。'],
+    ['脚を広げてまたごう', 'ミニ電車が迫ります。Sを押して脚を左右に広げ、抜けるまで維持しましょう。'],
+    ['足元を上げて飛び越えよう', '横2個のコーンに近づいたらSpace。足が上を通るよう、少し手前でジャンプしましょう。'],
     ['立ってEで取得しよう', '学生証が手元に近づいたら、立ったままE。自動では取得しません。通常プレイは取り逃がすと終了です。'],
-    ['空中でEを押そう', '高いタオルはSpaceでジャンプし、頂点付近でE。現在の手の高さが届く必要があります。'],
+    ['空中でEを押そう', '高いタオルはSpaceでジャンプしてE。少し早いE入力は0.4秒間予約され、手が届くと取得できます。'],
     ['疲労を管理しよう', 'しゃがんで12%以上にし、立って6%以下まで回復。最後に1回ジャンプして負荷を見ましょう。長押しほど疲労が増えます。'],
     ['動作を組み合わせよう', 'しゃがむ → 立ってE → ジャンプしてE → Sでまたぐ → ジャンプで回避。見た目で判断して5つを続けましょう。']
   ];
@@ -133,7 +110,8 @@
       this.speed = CONFIG.INITIAL_SPEED; this.events = []; this.effects = [];
       this.spawnTimer = 0.6; this.lastId = ''; this.kindRun = 0; this.lastKind = '';
       this.elapsed = 0; this.reason = ''; this.paused = false; this.serial = 0;
-      this.planTime = 0; this.planLoad = 0; this.completedEvents = 0;
+      this.planTime = 0; this.planLoad = 0; this.planEndTime = 0; this.recoveryUntil = 0; this.nextChallengeDistance = 350; this.challenges = 0; this.completedEvents = 0;
+      this.grabReservation = { remaining: 0, uid: null };
       this.tutorial = { step: 0, done: false, actions: new Set(), peak: false, recovered: false, retry: 0, feedback: '', passed: 0 };
     }
     get strain() { return Math.min(100, this.crouchStrain + this.ankleStrain); }
@@ -141,12 +119,14 @@
     get headHeight() { return (this.crouching && this.jumpY === 0 ? CONFIG.CROUCH_HEIGHT : CONFIG.PASSAGE_HEIGHT) + this.jumpY; }
     get handHeight() { return CONFIG.STANDING_REACH + this.jumpY; }
     get area() { return areaAt(this.distance); }
+    get nextEvent() { return this.events.filter(e => !e.completed && !e.collected).reduce((first, event) => !first || event.z < first.z ? event : first, null); }
     start() { this.reset(); this.mode = 'playing'; }
     startTutorial() { this.reset(); this.mode = 'tutorial'; this.speed = CONFIG.TUTORIAL_SPEED; this.setupLesson(); }
     title() { this.reset(); this.mode = 'title'; }
     setupLesson() {
       this.events = []; this.jumpY = 0; this.jumpVelocity = 0; this.crouching = false; this.straddling = false;
       this.crouchStrain = 0; this.ankleStrain = 0; this.crouchEffort = 0; this.uprightTime = 0;
+      this.grabReservation = { remaining: 0, uid: null };
       Object.assign(this.tutorial, { done: false, actions: new Set(), peak: false, recovered: false, retry: 0, feedback: '', passed: 0 });
       this.spawnLessonEvent();
     }
@@ -161,16 +141,16 @@
       const step = this.tutorial.step;
       if (step === 1) obstacle('new-class');
       if (step === 2) obstacle('strap');
-      if (step === 3) obstacle('lane-pole');
-      if (step === 4) obstacle('panda');
+      if (step === 3) obstacle('mini-train');
+      if (step === 4) obstacle('double-cone');
       if (step === 5) item('student-id');
       if (step === 6) item('towel');
-      if (step === 8) { obstacle('club-door'); item('student-id', 61); item('towel', 79); obstacle('lane-pole', 97); obstacle('panda', 115); }
+      if (step === 8) { obstacle('club-door'); item('student-id', 61); item('towel', 79); obstacle('vault', 97); obstacle('panda', 115); }
     }
     makeObstacle(def, clearance = def.min, z = CONFIG.SPAWN_DISTANCE) {
       const rule = def.rule || 'overhead';
       const arrivalSpeed = this.mode === 'tutorial' ? CONFIG.TUTORIAL_SPEED : speedAt(this.distance + z);
-      const duration = rule === 'jump' ? 0.12 : rule === 'straddle' ? 0.16 : 0.32;
+      const duration = def.duration ?? (rule === 'jump' ? 0.12 : rule === 'straddle' ? 0.16 : 0.32);
       return { ...def, rule, kind: 'obstacle', clearance, height: clearance, z, width: def.width || 460,
         length: arrivalSpeed * duration, uid: ++this.serial, failed: false, completed: false };
     }
@@ -196,34 +176,65 @@
       return [1.1, 1.8];
     }
     actionCost(def) {
+      if (def.rule === 'open') return 0;
       const jump = def.rule === 'jump' || (def.min ?? 0) > CONFIG.STANDING_REACH;
       if (jump) return CONFIG.JUMP_STRAIN + CONFIG.STRAIN_RECOVERY_RATE * (2 * CONFIG.JUMP_POWER / CONFIG.GRAVITY);
       if (def.rule === 'straddle') return (0.16 + CONFIG.ACTION_BUFFER) * (CONFIG.STRADDLE_STRAIN_RATE + CONFIG.STRAIN_RECOVERY_RATE);
       if (def.rule === 'overhead' && def.min < CONFIG.PASSAGE_HEIGHT) return (0.32 + CONFIG.ACTION_BUFFER) * (CONFIG.CROUCH_STRAIN_RATES[2] + CONFIG.STRAIN_RECOVERY_RATE);
       return 0;
     }
+    crouchLoad(seconds) {
+      const [a, b] = CONFIG.CROUCH_STAGE_SECONDS, [low, mid, high] = CONFIG.CROUCH_STRAIN_RATES;
+      return Math.min(seconds, a) * low + Math.min(Math.max(0, seconds - a), b - a) * mid + Math.max(0, seconds - b) * high;
+    }
     spawn() {
       const [min, max] = this.intervalRange();
       const interval = Math.max(min + this.random() * (max - min), 2 * CONFIG.JUMP_POWER / CONFIG.GRAVITY + CONFIG.ACTION_BUFFER);
-      const arrival = Math.max(this.elapsed + CONFIG.MIN_REACTION_TIME, this.planTime + interval);
-      const target = this.futureDistance(arrival - this.elapsed), area = areaAt(target);
-      const forecast = Math.max(0, Math.max(this.planLoad, this.strain) - Math.max(0, arrival - this.planTime) * CONFIG.STRAIN_RECOVERY_RATE);
-      const legal = def => def.id !== this.lastId && def.areas.includes(area.id) && forecast + this.actionCost(def) <= CONFIG.PLANNER_STRAIN_LIMIT;
-      let obstacles = OBSTACLES.filter(legal), items = ITEMS.filter(legal);
+      let arrival = Math.max(this.elapsed + CONFIG.MIN_REACTION_TIME, this.planTime + interval, this.planEndTime + CONFIG.ACTION_BUFFER + 0.5);
+      const baseLoad = Math.max(this.planLoad, this.strain);
+      let target = this.futureDistance(arrival - this.elapsed), area = areaAt(target);
+      let endurance = null;
+      // An occasional visibly long low passage creates genuine 80–95% fatigue.
+      // It starts after full recovery and is followed by standing-only recovery events.
+      if (this.distance >= this.nextChallengeDistance && arrival >= this.recoveryUntil) {
+        const ready = Math.max(arrival, this.planTime + (baseLoad + 1) / CONFIG.STRAIN_RECOVERY_RATE);
+        const readyTarget = this.futureDistance(ready - this.elapsed), readyArea = areaAt(readyTarget);
+        const corridors = OBSTACLES.filter(d => ['strap', 'rack-bar', 'bus-roof'].includes(d.id) && d.areas.includes(readyArea.id) && d.id !== this.lastId);
+        if (corridors.length) {
+          endurance = { ...corridors[Math.floor(this.random() * corridors.length)], duration: CONFIG.ENDURANCE_SECONDS, endurance: true };
+          arrival = ready; target = readyTarget; area = readyArea;
+        }
+      }
+      const forecast = Math.max(0, baseLoad - Math.max(0, arrival - this.planTime) * CONFIG.STRAIN_RECOVERY_RATE);
+      const legal = def => {
+        const cost = this.actionCost(def);
+        return def.id !== this.lastId && def.areas.includes(area.id) && (cost === 0 || arrival >= this.recoveryUntil && forecast + cost <= CONFIG.PLANNER_STRAIN_LIMIT);
+      };
+      const obstacles = OBSTACLES.filter(legal), items = ITEMS.filter(d => d.max <= CONFIG.MAX_REACH && legal(d));
       let kind = this.random() < (area.id === 'park' ? 0.78 : 0.6) ? 'obstacle' : 'item';
       if (this.kindRun >= 3 && kind === this.lastKind) kind = kind === 'item' ? 'obstacle' : 'item';
       if (!obstacles.length) kind = 'item'; if (!items.length) kind = 'obstacle';
       const choices = kind === 'obstacle' ? obstacles : items;
-      if (!choices.length) { this.spawnTimer = 0.25; return; } // Defer instead of forcing an exhausting event.
+      if (!endurance && !choices.length) { this.spawnTimer = 0.25; return; }
       const weighted = area.id === 'park' && kind === 'obstacle' ? choices.flatMap(d => ['panda', 'elephant', 'turtle', 'horse'].includes(d.id) ? [d, d, d, d] : [d]) : choices;
-      const def = weighted[Math.floor(this.random() * weighted.length)], z = target - this.distance;
+      const def = endurance || weighted[Math.floor(this.random() * weighted.length)], z = target - this.distance;
+      if (endurance) kind = 'obstacle';
       const height = def.min === Infinity ? Infinity : def.min + Math.floor(this.random() * (def.max - def.min + 1));
       const event = kind === 'obstacle' ? this.makeObstacle(def, height, z) : this.makeItem(def, z);
       event.areaId = area.id; event.arrivalTime = arrival; event.plannedCost = this.actionCost(def);
-      this.events.push(event); this.planTime = arrival; this.planLoad = forecast + event.plannedCost;
-      this.lastId = def.id; this.kindRun = kind === this.lastKind ? this.kindRun + 1 : 1; this.lastKind = kind;
-      // Arrival slots include an entire jump, item window and posture-change margin.
-      this.spawnTimer += interval;
+      this.planEndTime = arrival + (endurance ? CONFIG.ENDURANCE_SECONDS : kind === 'item' ? (event.high ? 0.55 : CONFIG.ITEM_REACH_TIME) : event.length / speedAt(target));
+      if (endurance) {
+        event.length = this.futureDistance(arrival - this.elapsed + CONFIG.ENDURANCE_SECONDS) - target;
+        const peak = this.crouchLoad(CONFIG.ENDURANCE_SECONDS + CONFIG.ENDURANCE_MARGIN);
+        this.planTime = this.planEndTime; this.planLoad = peak;
+        this.recoveryUntil = this.planEndTime + (peak - CONFIG.RECOVERY_TARGET) / CONFIG.STRAIN_RECOVERY_RATE + CONFIG.ACTION_BUFFER;
+        this.nextChallengeDistance = target + 1000 + this.random() * 400; this.challenges++;
+        event.plannedCost = peak;
+      } else { this.planTime = arrival; this.planLoad = forecast + event.plannedCost; }
+      this.events.push(event); this.lastId = def.id;
+      this.kindRun = kind === this.lastKind ? this.kindRun + 1 : 1; this.lastKind = kind;
+      // Keep the lookahead bounded when a long passage adds time to the schedule.
+      this.spawnTimer = Math.max(interval, this.planTime + interval - CONFIG.MIN_REACTION_TIME - this.elapsed);
     }
     jump() {
       if (!['playing', 'tutorial'].includes(this.mode) || this.paused || this.jumpY > 0 || this.jumpVelocity > 0) return false;
@@ -240,15 +251,22 @@
     grab() {
       if (!['playing', 'tutorial'].includes(this.mode) || this.paused) return false;
       if (this.mode === 'tutorial') this.tutorial.actions.add('grab');
-      const reachable = this.events.find(e => e.kind === 'item' && !e.collected && Math.abs(e.z) <= e.reachDistance);
+      const item = this.events.find(e => e.kind === 'item' && !e.collected && !e.completed);
+      this.grabReservation = { remaining: CONFIG.GRAB_BUFFER_SECONDS, uid: item?.uid ?? null };
+      this.effects.push({ type: 'reach', life: 0.25, high: Boolean(item?.high), height: item?.height });
+      const taken = this.tryGrab(); this.checkLesson(); return taken;
+    }
+    tryGrab() {
+      if (this.grabReservation.remaining <= 0) return false;
+      const reachable = this.events.find(e => e.uid === this.grabReservation.uid && e.kind === 'item' && !e.collected && !e.completed && Math.abs(e.z) <= e.reachDistance);
       const airborne = this.jumpY > 0;
       const valid = reachable && !this.crouching && !this.straddling && (reachable.high ? airborne && this.handHeight + CONFIG.REACH_TOLERANCE >= reachable.height : !airborne && this.jumpVelocity === 0);
-      if (valid) {
-        reachable.collected = true; this.items++; const bonus = reachable.high ? 500 : 300; this.itemScore += bonus;
-        this.effects.push({ type: 'collect', text: '+' + bonus, life: 1, seed: this.random(), high: reachable.high, height: reachable.height });
-        if (this.mode === 'tutorial') this.lessonPass();
-      } else this.effects.push({ type: 'reach', life: 0.25, high: Boolean(reachable?.high), height: reachable?.height });
-      this.checkLesson(); return Boolean(valid);
+      if (!valid) return false;
+      this.grabReservation = { remaining: 0, uid: null }; // Exactly one object per key press.
+      reachable.collected = true; this.items++; const bonus = reachable.high ? 500 : 300; this.itemScore += bonus;
+      this.effects.push({ type: 'collect', text: '+' + bonus, life: 1, seed: this.random(), high: reachable.high, height: reachable.height });
+      if (this.mode === 'tutorial') this.lessonPass();
+      return true;
     }
     lessonPass() {
       this.tutorial.passed++;
@@ -269,7 +287,13 @@
     }
     checkStrain(cause) {
       if (this.mode !== 'playing' || this.strain < 100) return;
-      this.gameOver(cause === 'jump' || this.ankleStrain > this.crouchStrain ? 'ジャンプのしすぎで足首をねんざしました！' : '体への負担が限界に達しました！');
+      const reason = cause === 'crouch' ? 'ヘルニアになりました' : cause === 'straddle' ? 'またぎのしすぎで体への負担が限界に達しました！' : cause === 'jump' ? 'ジャンプのしすぎで足首をねんざしました！' : '体への負担が限界に達しました！';
+      this.gameOver(reason);
+    }
+    collisionReason(event) {
+      if (event.rule === 'jump' && this.straddling) return 'そこまでの柔軟性はありません';
+      if (event.rule === 'straddle' && (this.jumpY > 0 || this.jumpVelocity > 0)) return 'そこまでの跳躍力はありません';
+      return event.name + (event.rule === 'overhead' ? 'に頭をぶつけました！' : 'にぶつかりました！');
     }
     gameOver(reason) { this.reason = reason; this.mode = 'gameover'; this.crouching = false; this.straddling = false; }
     update(dt, crouchHeld = false, straddleHeld = false) {
@@ -303,7 +327,7 @@
         if (this.uprightTime >= CONFIG.CROUCH_RESET_SECONDS - 1e-8) this.crouchEffort = 0;
         if (this.straddling) this.crouchStrain += CONFIG.STRADDLE_STRAIN_RATE * dt;
       }
-      // One displayed gauge; normal running recovers a total of 6%/s, not 6% per component.
+      // One displayed gauge; normal running recovers a total of 8%/s, not 8% per component.
       let recovery = dt * (grounded && !this.crouching && !this.straddling ? CONFIG.STRAIN_RECOVERY_RATE : CONFIG.ANKLE_RECOVERY_RATE);
       const ankleRecovery = Math.min(this.ankleStrain, recovery); this.ankleStrain -= ankleRecovery; recovery -= ankleRecovery;
       if (grounded && !this.crouching && !this.straddling) this.crouchStrain = Math.max(0, this.crouchStrain - recovery);
@@ -312,10 +336,11 @@
         if (this.crouching) this.tutorial.actions.add('crouch');
         if (this.straddling) this.tutorial.actions.add('straddle');
       }
-      this.checkStrain(this.crouching || this.straddling ? 'posture' : 'jump');
+      this.checkStrain(this.crouching ? 'crouch' : this.straddling ? 'straddle' : 'idle');
       if (this.mode === 'gameover') return;
       for (const event of this.events) {
         const oldZ = event.z; event.z -= this.speed * dt;
+        if (event.kind === 'item') this.tryGrab();
         if (event.kind === 'obstacle' && oldZ >= -event.length && event.z <= 0) {
           const head = oldZ <= 0 ? Math.max(oldHead, this.headHeight) : this.headHeight;
           const foot = oldZ <= 0 ? Math.min(oldFoot, this.jumpY) : this.jumpY;
@@ -323,7 +348,7 @@
             event.rule === 'straddle' ? this.straddling && event.height <= CONFIG.INSEAM * 0.85 && event.width <= CONFIG.MAX_STRADDLE_WIDTH : foot >= event.height);
           if (!valid) {
             event.failed = true;
-            if (this.mode === 'playing') { this.gameOver(event.rule === 'overhead' ? event.name + 'に頭をぶつけました！' : event.name + 'にぶつかりました！'); return; }
+            if (this.mode === 'playing') { this.gameOver(this.collisionReason(event)); return; }
             this.failLesson('もう一度！タイミングと姿勢を確かめましょう。'); break;
           }
           if (this.mode === 'tutorial' && this.tutorial.step === 1 && (this.crouching || this.straddling || this.jumpY > 0)) event.failed = true;
@@ -344,6 +369,7 @@
         }
       }
       this.events = this.events.filter(e => e.z > -(e.length || e.reachDistance || 12) - 12);
+      this.grabReservation.remaining = Math.max(0, this.grabReservation.remaining - dt);
       for (const fx of this.effects) fx.life -= dt;
       this.effects = this.effects.filter(fx => fx.life > 0);
       if (this.mode === 'playing') { this.spawnTimer -= dt; if (this.spawnTimer <= 0) this.spawn(); }

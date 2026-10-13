@@ -65,7 +65,7 @@ const state = page => get(page, () => { const g = __RUN188_TEST__.model; return 
     assert.equal((await state(page)).mode, 'playing');
     console.log('PASS: all nine lessons and five-event combination completed with actual keyboard inputs');
     // Deterministic scenarios exercise the browser input layer against real simulation.
-    await page.evaluate(() => { const g = __RUN188_TEST__.model; g.events = [g.makeObstacle(Run188.OBSTACLES[6], 184, 17)]; g.spawnTimer = 100; });
+    await page.evaluate(() => { const g = __RUN188_TEST__.model; g.events = [g.makeObstacle(Run188.OBSTACLES.find(d=>d.id==='club-door'),175,17)]; g.spawnTimer = 100; });
     await page.screenshot({ path: path.join(__dirname, '../work/gameplay.png') });
     assert.equal(await page.locator('#tutorial-panel').isVisible(), false);
     const normalText = await page.locator('#game').innerText();
@@ -105,7 +105,7 @@ const state = page => get(page, () => { const g = __RUN188_TEST__.model; return 
     await blockedPage.goto(url + '?test'); assert.equal((await state(blockedPage)).mode, 'tutorial');
     await blockedPage.locator('#skip-checkbox').check(); await blockedPage.locator('#skip-button').click();
     assert.equal((await state(blockedPage)).mode, 'playing'); await blocked.close();
-    console.log('PASS: all 57 event designs and seven areas render and localStorage denial does not stop play');
+    console.log('PASS: all 40 event designs and seven areas render and localStorage denial does not stop play');
     await page.setViewportSize({ width: 390, height: 850 }); await page.goto(url + '?test');
     await page.locator('#tutorial-button').click(); await page.screenshot({ path: path.join(__dirname, '../work/mobile.png') });
     assert.equal(await page.evaluate(() => document.documentElement.scrollWidth > innerWidth), false);

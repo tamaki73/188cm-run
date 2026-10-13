@@ -20,6 +20,8 @@
         <div class="stat"><span>アイテム</span><strong><b id="items">0</b><small> 個</small></strong></div>
         <div class="strain"><div><span>体への負荷</span><strong id="strain-value">0%</strong></div><div class="track" role="progressbar" aria-label="体への負荷" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0" id="strain-track"><i id="strain-bar"></i></div></div>
       </div>
+      <div id="next-event" class="next-event" role="status" aria-live="polite" hidden></div>
+      <div id="strain-warning" class="strain-warning" role="status" aria-live="polite" hidden></div>
       <div class="scene-meta"><span id="mode-label">街を走る、あなたの物語。</span><span>身長 <b>188</b> cm</span></div>
       <button class="pause-button" id="pause-button" aria-label="一時停止" hidden>Ⅱ</button>
       <section class="overlay" id="title-panel" hidden>
@@ -31,14 +33,14 @@
         <div class="skip-row"><label><input type="checkbox" id="skip-checkbox"> 次回からチュートリアルを表示しない</label><button id="skip-button" class="text-button" disabled>チュートリアルをスキップ</button></div>
       </section>
       <section class="overlay" id="over-panel" hidden>
-        <div class="result-card"><span class="eyebrow">おつかれさまでした</span><h2>GAME OVER<span class="lime">.</span></h2><p id="over-reason"></p><div class="result-score"><span>最終スコア</span><strong id="final-score">0</strong></div><div class="result-details"><span>走行距離 <b id="final-distance">0 m</b></span><span>アイテム <b id="final-items">0 個</b></span></div><button id="restart-button" class="primary">もう一度走る <kbd>Enter</kbd></button><button id="back-button" class="text-button">タイトルへ戻る</button></div>
+        <div class="result-card"><span class="eyebrow">おつかれさまでした</span><h2>GAME OVER<span class="lime">.</span></h2><p id="over-reason" role="alert"></p><div class="result-score"><span>最終スコア</span><strong id="final-score">0</strong></div><div class="result-details"><span>走行距離 <b id="final-distance">0 m</b></span><span>アイテム <b id="final-items">0 個</b></span></div><button id="restart-button" class="primary">もう一度走る <kbd>Enter</kbd></button><button id="back-button" class="text-button">タイトルへ戻る</button></div>
       </section>
       <section class="overlay pause-overlay" id="pause-panel" hidden><div class="pause-card"><span class="eyebrow">ひと休み</span><h2>一時停止中</h2><p>3秒後に再開します。<br>姿勢キーはカウント中も押せます。</p><button id="resume-button" class="primary">ゲームに戻る →</button></div></section>
       <div class="countdown" id="countdown" hidden aria-live="polite">3</div>
       <div class="focus-tip" id="focus-tip" hidden>画面をクリックして操作</div>
     </section>
-    <footer class="controls"><div><kbd>↓</kbd><span> / </span><kbd>Shift</kbd><span> 長押しでしゃがむ</span></div><div><kbd>S</kbd><span> 長押しでまたぐ</span></div><div><kbd>Space</kbd><span> ジャンプ</span></div><div><kbd>E</kbd><span> アイテム取得</span></div><div><kbd>Esc</kbd><span> 一時停止</span></div><button class="text-button" id="sound-button" aria-pressed="false">音：オフ</button></footer>
-    <p class="footnote">アイテムは近づいてE。取り逃がすと終了します。<span>高さ・身体能力・遊具・標識への動作は架空の設定です。現実の行動は勧めません。</span></p>
+    <footer class="controls"><div><kbd>↓</kbd><span> / </span><kbd>Shift</kbd><span> 長押しでしゃがむ</span></div><div><kbd>S</kbd><span> 長押しでまたぐ</span></div><div><kbd>Space</kbd><span> ジャンプ</span></div><div><kbd>E</kbd><span> アイテム取得</span></div><div><kbd>Esc</kbd><span> 一時停止</span></div><button class="text-button" id="sound-button" aria-pressed="false">音：オフ</button><button class="text-button" id="effects-button" aria-pressed="false">演出：通常</button></footer>
+    <p class="footnote">アイテムは近づいてE。取り逃がすと終了します。<span>病名・負荷・身体能力はゲーム内の演出です。遊具や標識への現実の行動は勧めません。</span></p>
     <nav class="touch-controls" aria-label="タッチ操作"><button id="touch-crouch">しゃがむ（長押し）</button><button id="touch-straddle">またぐ（長押し）</button><button id="touch-jump">ジャンプ</button><button id="touch-grab">取る</button></nav>
   </main>
   <script src="game-engine.js"></script>

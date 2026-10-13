@@ -13,7 +13,9 @@
   let best = Number(storage.get('best', '0')) || 0;
   let lastTime = null, uiMode = '', lessonIndex = -1, soundEnabled = false, audioContext;
   let resumeAt = 0, touchCrouch = false, touchStraddle = false, lastItems = 0, ambientTime = 0;
-  const W = 960, H = 680, CX = 480, HORIZON = 344, GROUND = 628, CM = (GROUND - HORIZON) / CONFIG.PASSAGE_HEIGHT;
+  let reducedEffects = storage.get('reducedEffects', String(matchMedia('(prefers-reduced-motion: reduce)').matches)) === 'true';
+  let lastWarningAt = -Infinity;
+  const W = 960, H = 680, CX = 480, HORIZON = 246, GROUND = 636, CM = 1.38;
 
   function focusGame() { game.focus({ preventScroll: true }); $('focus-tip').hidden = true; }
   function clearInput(resetPose = true) {
@@ -21,7 +23,7 @@
     if (resetPose) { model.crouching = false; model.straddling = false; }
   }
   function activate(action) {
-    clearInput(); resumeAt = 0; action(); uiMode = ''; lastItems = model.items; focusGame(); syncUI();
+    clearInput(); resumeAt = 0; lastWarningAt = -Infinity; action(); uiMode = ''; lastItems = model.items; focusGame(); syncUI();
   }
   function pause() {
     if (!['playing', 'tutorial'].includes(model.mode)) return;
@@ -45,7 +47,7 @@
     } catch { soundEnabled = false; $('sound-button').textContent = '音：オフ'; }
   }
   function jump() { if (model.jump()) tone(290, 0.13, 'triangle'); }
-  function grab() { if (model.grab()) { tone(880); setTimeout(() => tone(1320, 0.18), 80); } }
+  function grab() { model.grab(); }
 
   $('start-button').addEventListener('click', () => activate(() => model.start()));
   $('tutorial-button').addEventListener('click', () => activate(() => model.startTutorial()));
@@ -67,6 +69,10 @@
     $('sound-button').setAttribute('aria-pressed', String(soundEnabled)); tone(660); focusGame();
   });
   $('sound-button').addEventListener('pointerdown', e => e.preventDefault());
+  $('effects-button').addEventListener('pointerdown', e => e.preventDefault());
+  $('effects-button').addEventListener('click', () => {
+    reducedEffects = !reducedEffects; storage.set('reducedEffects', reducedEffects); focusGame(); syncUI();
+  });
   game.addEventListener('pointerdown', e => {
     if (!e.target.closest('button, input, label')) focusGame();
   });
@@ -130,8 +136,22 @@
     const strain = model.strain;
     $('strain-value').textContent = Math.floor(strain) + '%';
     $('strain-bar').style.width = strain + '%';
-    $('strain-bar').style.background = strain < 40 ? '#86df9e' : strain < 75 ? '#f2d66d' : '#fa7777';
+    $('strain-bar').style.background = strain < 60 ? '#86df9e' : strain < 80 ? '#f2d66d' : strain < 95 ? '#f1a259' : '#fa7777';
     $('strain-track').setAttribute('aria-valuenow', String(Math.floor(strain)));
+    game.dataset.strainLevel = strain < 60 ? 'low' : strain < 80 ? 'medium' : strain < 95 ? 'high' : 'critical';
+    const warning = active && strain >= 95 ? '体への負荷が限界に近づいています' : active && strain >= 80 ? '体への負荷が高くなっています' : '';
+    $('strain-warning').hidden = !warning;
+    if ($('strain-warning').textContent !== warning) $('strain-warning').textContent = warning;
+    game.classList.toggle('reduced-effects', reducedEffects);
+    $('effects-button').setAttribute('aria-pressed', String(reducedEffects));
+    $('effects-button').textContent = '演出：' + (reducedEffects ? '弱め' : '通常');
+    if (active && !model.paused && strain >= 95 && !reducedEffects && soundEnabled && model.elapsed - lastWarningAt >= 1.5) {
+      tone(620, 0.1, 'triangle', 0.025); lastWarningAt = model.elapsed;
+    }
+    const event = model.nextEvent;
+    $('next-event').hidden = !active || !event;
+    const name = event ? '次の' + (event.kind === 'item' ? 'アイテム' : '障害物') + '：' + event.name : '';
+    if ($('next-event').textContent !== name) $('next-event').textContent = name;
     if (model.mode === 'tutorial') {
       const t = model.tutorial;
       if (lessonIndex !== t.step) {
@@ -147,7 +167,7 @@
       $('lesson-feedback').textContent = t.done ? 'できました！次へ進みましょう。' : progress;
       $('skip-button').disabled = !$('skip-checkbox').checked;
     }
-    if (model.items > lastItems) lastItems = model.items;
+    if (model.items > lastItems) { tone(880); setTimeout(() => tone(1320, 0.18), 80); lastItems = model.items; }
     if (model.mode === 'playing') $('mode-label').textContent = model.area.name + '　・　速度 ' + (model.speed / CONFIG.INITIAL_SPEED).toFixed(1) + '倍';
   }
 
@@ -232,7 +252,7 @@
       rect(22, -30, 48, 30, '#9b8460'); circle(40, -41, 25, '#486d59'); circle(61, -39, 20, '#608263');
       ctx.restore();
     }
-    if (model.mode === 'playing') {
+    if (model.mode === 'playing' && !reducedEffects) {
       ctx.globalAlpha = 0.1 + (model.speed / CONFIG.MAX_SPEED) * 0.12;
       for (let i = 0; i < 15; i++) {
         const p = (ambientTime * (2 + i % 3) + i * 0.13) % 1;
@@ -285,97 +305,7 @@
     line([[-230, 0], [230, 0]], '#d0d3bd', 4);
     line([[-230, top], [230, top]], '#e2dfc399', 2);
   }
-  const doorDrawers = {
-    train(e, top) {
-      doorBase(top, '#bbc5c9', '#79949d', 19);
-      rect(-380, -345, 140, 320, '#8da2aa'); rect(240, -345, 140, 320, '#8da2aa');
-      for (const side of [-1, 1]) {
-        const x = side < 0 ? -368 : 251;
-        rect(x, -308, 105, 117, '#273e50', '#cbd6d4');
-        poly([[x + 8, -302], [x + 98, -302], [x + 72, -202], [x + 5, -202]], '#68898a6a');
-        rect(x + 10, -179, 90, 139, '#b4c2c3', '#5d737d');
-        line([[x + 48, -160], [x + 48, -77]], '#617981', 3);
-      }
-      rect(-380, -97, 137, 16, '#d0b879'); rect(243, -97, 137, 16, '#d0b879');
-      rect(-380, -30, 760, 17, '#3b525c'); rect(-228, -5, 456, 9, '#8a9390');
-      for (let i = 0; i < 6; i++) line([[-220, -4 + i * 1.6], [220, -4 + i * 1.6]], '#d1d1be', 1);
-      label('都市環状線', -305, -116, 13, '#dce5df');
-    },
-    concrete(e, top) {
-      doorBase(top, '#73827d', '#86958b', 40);
-      for (let i = 0; i < 8; i++) {
-        line([[-335, -355 + i * 45], [-247, -355 + i * 45]], '#c4cbb442');
-        line([[247, -355 + i * 45], [335, -355 + i * 45]], '#4b64554f');
-      }
-      rect(-335, top - 40, 670, 25, '#5c706c');
-      rect(-68, -350, 136, 10, '#fff3c0'); rect(-61, -340, 122, 4, '#d3c89b');
-      for (const x of [-305, 290]) { line([[x, -320], [x + 9, -210], [x - 6, -120]], '#5b71655c'); circle(x + 9, -200, 2, '#b3c0a7'); }
-    },
-    loading(e, top) {
-      doorBase(top, '#667f8b', '#4d6877', 24);
-      for (let i = -355; i < top - 20; i += 12) line([[-315, i], [315, i]], '#9bb2b544', 3);
-      for (const x of [-308, 284]) { rect(x, -185, 24, 185, '#d1b86e'); for (let y = -170; y < 0; y += 30) poly([[x, y], [x + 24, y + 13], [x + 24, y + 27], [x, y + 14]], '#394b4e'); }
-      rect(-327, -53, 65, 53, '#9c7953'); line([[-295, -53], [-295, 0]], '#cab384', 4);
-      rect(252, -68, 80, 68, '#a2855f'); label('搬入口', 0, -330, 17, '#b7ccd1');
-    },
-    brick(e, top) {
-      doorBase(top, '#bba487', '#8d7667', 36);
-      for (let row = 0; row < 12; row++) {
-        const y = -366 + row * 30;
-        for (let col = 0; col < 9; col++) {
-          const x = -337 + col * 80 + (row % 2) * 40;
-          if (x < -242 || x > 242 || y < top - 30) rect(x + 2, y + 2, 74, 24, '#a58a7437', '#564f492b');
-        }
-      }
-      rect(-335, -370, 670, 10, '#d0c0a0');
-      rect(-292, -236, 33, 8, '#d6c895'); rect(-287, -228, 23, 35, '#e5d8a868');
-      line([[274, -332], [274, -30], [320, -30]], '#526564', 8);
-      circle(281, -102, 17, '#628272'); circle(312, -85, 24, '#486a54');
-    },
-    parking(e, top) {
-      doorBase(top, '#6d7c7b', '#748787', 30);
-      rect(-330, -112, 93, 50, '#d6ba71'); rect(237, -112, 93, 50, '#d6ba71');
-      line([[-327, -340], [323, -340]], '#a28567', 10);
-      for (const x of [-298, 285]) { line([[x, -338], [x, -275]], '#8d7c6a', 8); rect(x - 17, -272, 40, 6, '#e2dfbe'); }
-      for (const x of [-300, 300]) { rect(x - 42, -64, 82, 42, '#385361'); poly([[x - 31, -65], [x - 15, -93], [x + 23, -93], [x + 36, -65]], '#658184'); circle(x - 23, -20, 11, '#22333b'); circle(x + 24, -20, 11, '#22333b'); }
-      label('P', -279, -168, 42, '#e6e9d8');
-    },
-    warehouse(e, top) {
-      doorBase(top, '#546773', '#7a8784', 37);
-      rect(-335, top - 25, 670, 22, '#3d525b'); line([[-326, top - 23], [326, top - 23]], '#95a9a5', 3);
-      for (const x of [-329, 245]) {
-        rect(x, -249, 78, 249, '#455e63');
-        for (let row = 0; row < 3; row++) { rect(x + 4, -235 + row * 78, 70, 58, '#aa8d61'); line([[x + 37, -235 + row * 78], [x + 37, -179 + row * 78]], '#d5be8d', 3); rect(x, -170 + row * 78, 78, 7, '#b3bcab'); }
-      }
-      line([[-300, -346], [300, -346], [300, -285]], '#a59374', 8); rect(-335, -10, 105, 10, '#bda983');
-    },
-    gym(e, top) {
-      doorBase(top, '#b7a37d', '#7b968a', 25);
-      rect(-331, -343, 81, 320, '#b6a180', '#d7c8a3'); rect(250, -343, 81, 320, '#b6a180', '#d7c8a3');
-      for (const x of [-307, 288]) for (let y = -320; y < -25; y += 30) line([[x, y], [x + 34, y]], '#807861', 3);
-      rect(-330, -65, 87, 55, '#3c8586'); rect(-330, -73, 87, 8, '#60a3a0');
-      circle(290, -27, 24, '#d5a76a', '#8b633e'); line([[268, -26], [313, -26]], '#805e3a', 2); line([[291, -50], [291, -4]], '#805e3a', 2);
-      poly([[-243, 0], [243, 0], [275, 22], [-275, 22]], '#bda578');
-      for (let y = 5; y < 22; y += 6) line([[-250, y], [250, y]], '#806b473e'); label('器具庫', 0, -335, 17, '#e6e6c6');
-    },
-    stairs(e, top) {
-      doorBase(top, '#c0bcac', '#7d8c83', 35);
-      poly([[-345, -370], [-345, top - 27], [270, top - 27], [270, -370]], '#626f68');
-      // Stepped side profile and diagonal underside are separate from the horizontal opening lintel.
-      for (let i = 0; i < 10; i++) { const x = -320 + i * 63, y = top - 39 - i * 8; rect(x, y - 13, 65, 13, '#b5b7a5'); line([[x, y - 13], [x + 65, y - 13]], '#e0debf', 2); }
-      line([[-330, top - 24], [300, top - 105]], '#d1c8b0', 8);
-      line([[-318, top - 50], [305, top - 136]], '#2e494e', 5);
-      rect(251, -80, 65, 80, '#879a91');
-    },
-    service(e, top) {
-      doorBase(top, '#4a6470', '#506a74', 45);
-      for (const [x, color] of [[-307, '#9d9274'], [-281, '#6d989c'], [290, '#b49469']]) { line([[x, -362], [x, -37], [x + 14, -37]], color, 13); for (const y of [-280, -140]) rect(x - 12, y, 24, 8, '#b6bbaa'); }
-      rect(-187, top - 36, 374, 28, '#374e5a');
-      for (let x = -175; x < 180; x += 18) line([[x, top - 30], [x + 10, top - 15]], '#94a6a859', 4);
-      rect(248, -245, 80, 90, '#849b9b', '#354c55'); circle(265, -220, 5, '#d3d08b'); rect(277, -225, 37, 10, '#344e5c');
-      rect(-70, -360, 140, 7, '#dbe3c4');
-    }
-  };
+  const doorDrawers = {};
   Object.assign(doorDrawers, {
     strap(e, top) {
       rect(-330, -395, 660, 25, '#8aa1a3'); line([[-315, -375], [315, -375]], '#d8ddce', 8);
@@ -404,12 +334,6 @@
       for (const x of [-329, 248]) { rect(x, top + 6, 80, -top - 13, '#917b5c'); rect(x + 8, top + 22, 64, 58, '#c1c4a0', '#6c715e'); line([[x + 42, top + 23], [x + 42, top + 80]], '#6c715e', 3); rect(x + 20, -140, 5, 27, '#d3c2a0'); }
       rect(-319, -69, 42, 47, '#6f9a82'); circle(291, -30, 22, '#bd9866'); label('部室', 0, top - 34, 19, '#e4dcc4');
     },
-    izakaya(e, top) {
-      doorBase(top, '#6d5948', '#8b775e');
-      for (const x of [-306, 275]) { circle(x, top + 49, 24, '#cd9579'); line([[x - 20, top + 49], [x + 20, top + 49]], '#a4755e', 3); }
-      for (let x = -222; x < 230; x += 89) rect(x, top - 53, 82, 34, '#435e6a');
-      label('街の食堂', 0, top - 27, 18, '#e2d7ae');
-    },
     tatami(e, top) {
       doorBase(top, '#8f7958', '#b8b291');
       for (const x of [-327, 247]) { rect(x, top + 8, 80, -top - 17, '#ded2a9'); for (let y = top + 45; y < -10; y += 43) line([[x, y], [x + 80, y]], '#9e8866', 4); line([[x + 40, top + 8], [x + 40, -10]], '#9e8866', 4); }
@@ -429,26 +353,48 @@
       doorDrawers['auto-door'](e, top); rect(-328, top - 61, 656, 35, '#bd965e'); label('スーパーマーケット', 0, top - 36, 20, '#f0e7c7');
       for (const x of [-288, 276]) { rect(x - 29, -77, 58, 45, '#a4bbb0', '#e2d9bc'); line([[x - 24, -69], [x + 24, -69]], '#647f7c', 3); circle(x - 19, -23, 8, '#506571'); circle(x + 19, -23, 8, '#506571'); }
     },
-    lecture(e, top) {
-      doorBase(top, '#a3aca0', '#83958a'); rect(-149, top - 52, 298, 29, '#4b626c'); label('講義室', 0, top - 31, 19, '#e5e4c6');
-      for (const x of [-326, 249]) { rect(x, top + 9, 77, -top - 19, '#9c8870'); rect(x + 10, top + 31, 58, 73, '#839fa0'); rect(x + 29, -166, 6, 44, '#d6d1b5'); }
-    },
     gate() {
       for (const side of [-1, 1]) { const x = side < 0 ? -158 : 72; rect(x, -155, 86, 155, '#69878b', '#b9cec3'); poly([[x, -155], [x + 86, -155], [x + 99, -172], [x + 13, -172]], '#bed0be'); rect(x + 26, -176, 36, 8, '#46746e'); rect(x + 9, -109, 64, 36, '#304d5c'); circle(x + 39, -91, 7, '#95bea6'); }
       line([[-72, -8], [72, -8]], '#c0d3ac', 3);
     }
   });
+  function coneShape(h, width) {
+    rect(-width / 2, -7, width, 7, '#a66d44');
+    poly([[-width * .4, -7], [-5, -h], [5, -h], [width * .4, -7]], '#e58e49');
+    poly([[-width * .24, -h * .45], [-width * .15, -h * .67], [width * .15, -h * .67], [width * .24, -h * .45]], '#efe9d5');
+  }
   function groundObstacle(e) {
     const h = e.height * CM, width = e.width * CM;
     ctx.fillStyle = '#132c384d'; ctx.beginPath(); ctx.ellipse(0, 2, width * .6, 10, 0, 0, Math.PI * 2); ctx.fill();
-    if (['pole', 'park-pole'].includes(e.style)) {
+    if (e.style === 'mini-train') {
+      rect(-width / 2, -h + 8, width, h - 24, '#628eac', '#c9d9bd');
+      poly([[-width / 2, -h + 9], [width / 2, -h + 9], [width * .4, -h], [-width * .4, -h]], '#d48c69');
+      for (const x of [-width * .34, width * .04]) { rect(x, -h + 17, width * .29, h * .27, '#7194a3', '#dce5cd'); line([[x + 3, -h + 19], [x + width * .24, -h + 33]], '#e6eddb', 2); }
+      rect(-width / 2, -h * .4, width, 8, '#ddb174');
+      for (const x of [-width * .3, width * .3]) { circle(x, -8, 8, '#344d56'); circle(x, -8, 3, '#b9cfb9'); circle(x, -h * .28, 5, '#ece3a9'); }
+      rect(-width * .38, -22, width * .76, 9, '#426f77');
+    } else if (e.style === 'suitcase') {
+      rect(-width * .22, -h, width * .44, 7, '#495c64');
+      rect(-width / 2, -h + 7, width, h - 19, '#ad8876', '#dbbda0');
+      for (let i = 1; i < 5; i++) line([[-width / 2 + i * width / 5, -h + 17], [-width / 2 + i * width / 5, -19]], '#7e675f', 3);
+      rect(-12, -h + 19, 24, 5, '#dbc6a5');
+      for (const x of [-width * .32, width * .32]) circle(x, -6, 6, '#344d56');
+    } else if (e.style === 'double-cone') {
+      for (const x of [-width * .27, width * .27]) { ctx.save(); ctx.translate(x, 0); coneShape(h, width * .42); ctx.restore(); }
+    } else if (e.style === 'vault') {
+      for (let row = 0; row < 5; row++) {
+        const y = -h + row * h / 5, upper = width * (.72 + .28 * row / 5) / 2, lower = width * (.72 + .28 * (row + 1) / 5) / 2;
+        poly([[-upper, y], [upper, y], [lower, y + h / 5], [-lower, y + h / 5]], row % 2 ? '#b78c5c' : '#c6a16b', '#7f7058');
+        for (const x of [-width * .16, width * .16]) rect(x - 4, y + h / 10 - 2, 8, 4, '#745e4e');
+      }
+      rect(-width * .36, -h, width * .72, h / 10, '#6a9596');
+    } else if (['pole', 'park-pole'].includes(e.style)) {
       ctx.beginPath(); ctx.ellipse(0, -5, 27, 8, 0, 0, Math.PI * 2); ctx.fillStyle = '#4e5b56'; ctx.fill();
       rect(-width / 2, -h, width, h - 5, e.style === 'pole' ? '#db874f' : '#a48960');
       ctx.beginPath(); ctx.ellipse(0, -h + 7, width / 2, 7, 0, 0, Math.PI * 2); ctx.fillStyle = e.style === 'pole' ? '#e89d63' : '#b1a17b'; ctx.fill();
       for (const ratio of [.2, .46]) rect(-width / 2, -h + h * ratio, width, 10, '#e9e3c8');
     } else if (e.style === 'cone') {
-      rect(-width / 2 - 7, -9, width + 14, 9, '#aa653c'); poly([[-width / 2, -9], [-7, -h], [7, -h], [width / 2, -9]], '#df914e');
-      poly([[-width * .28, -h * .45], [-width * .20, -h * .65], [width * .20, -h * .65], [width * .28, -h * .45]], '#ebe5c5');
+      coneShape(h, width);
     } else if (e.style === 'marker') {
       poly([[-width / 2, -4], [-width / 4, -h], [width / 4, -h], [width / 2, -4]], '#d3b860'); circle(0, -h + 4, 3, '#6f8c7a');
     } else if (e.style === 'divider') {
@@ -486,7 +432,16 @@
   }
   function obstacle(e) {
     if (e.z < -e.length - 5) return;
-    const { s, y } = project(e.z);
+    if (e.endurance && e.completed) return;
+    if (e.endurance) {
+      for (let i = 4; i >= 1; i--) {
+        const z = e.z + e.length * i / 4;
+        if (z <= 0) continue;
+        const p = project(z); ctx.save(); ctx.translate(CX, p.y); ctx.scale(p.s, p.s); ctx.globalAlpha = .7;
+        doorDrawers[e.style](e, -e.clearance * CM); ctx.restore();
+      }
+    }
+    const { s, y } = project(e.endurance ? Math.max(0, e.z) : e.z);
     const top = -e.clearance * CM;
     ctx.save(); ctx.translate(CX, y); ctx.scale(s, s);
     ctx.globalAlpha = Math.min(1, (e.z + e.length + 5) / 5);
@@ -588,11 +543,12 @@
     const sway = Math.sin(phase) * 5, bob = model.jumpY ? 0 : Math.abs(Math.sin(phase)) * 3;
     ctx.save();
     ctx.fillStyle = '#0b253b50'; ctx.beginPath(); ctx.ellipse(CX, GROUND + 4, 47 - Math.min(15, model.jumpY * .2), 11, 0, 0, Math.PI * 2); ctx.fill();
+    ctx.globalAlpha *= runnerOpacity();
     ctx.translate(CX, GROUND - jumpOffset);
     const height = (crouched ? CONFIG.CROUCH_HEIGHT : CONFIG.PASSAGE_HEIGHT) * CM;
     const headY = -height + 21;
     const hips = crouched ? -75 : -CONFIG.INSEAM * CM;
-    const shoulder = crouched ? -143 : -226;
+    const shoulder = -(crouched ? CONFIG.CROUCH_HEIGHT - 38 : CONFIG.PASSAGE_HEIGHT - 40) * CM;
     // Back foot, forward foot and bright soles provide a clear running cycle.
     ctx.lineCap = 'round';
     const stride = model.jumpY > 0 ? 14 : Math.sin(phase) * (crouched ? 14 : 24);
@@ -635,6 +591,7 @@
       ctx.save(); ctx.globalAlpha = Math.min(1, fx.life * 2);
       const t = 1 - fx.life, y = 320 - t * 75;
       label(fx.text, CX + 94, y, 29, '#e4ff9d');
+      if (reducedEffects) { ctx.restore(); continue; }
       for (let i = 0; i < 14; i++) {
         const a = i * Math.PI * 2 / 14 + fx.seed;
         circle(CX + 100 + Math.cos(a) * t * 100, 330 + Math.sin(a) * t * 85 + t * t * 55, 3 * fx.life + 1, i % 2 ? '#c5ef7c' : '#e3d58f');
@@ -646,7 +603,7 @@
     ctx.clearRect(0, 0, W, H); background();
     const events = [...model.events].sort((a, b) => b.z - a.z);
     if (model.mode === 'title') {
-      obstacle({ style: 'train', rule: 'overhead', clearance: 200, z: 23, length: 6 });
+      obstacle({ style: 'mini-train', rule: 'straddle', clearance: 70, height: 70, width: 66, z: 12, length: 6 });
       item({ prop: 'vending', object: 'drink', height: 201, z: 8, kind: 'item' });
     }
     for (const event of events) if (event.z >= 0) (event.kind === 'obstacle' ? obstacle : item)(event);
@@ -655,28 +612,23 @@
     effects();
     const vignette = ctx.createRadialGradient(CX, 350, 180, CX, 350, 610);
     vignette.addColorStop(0, '#06132200'); vignette.addColorStop(1, '#0613227a'); rect(0, 0, W, H, vignette);
-    eventNames(events);
+    heightReference();
   }
-  function eventNames(events) {
-    const placed = [];
-    for (const e of events) {
-      if (e.collected || e.z < -6 || !e.name) continue;
-      const { s, y } = project(e.z);
-      let x = CX + (e.kind === 'item' ? 130 * s : 0);
-      const top = e.kind === 'item' || ['straddle', 'jump'].includes(e.rule) ? e.height * CM : e.rule === 'open' ? 172 : Math.max(370, e.clearance * CM);
-      let tagY = Math.max(106, y - top * s - 20);
-      ctx.font = '600 13px "Yu Gothic", sans-serif';
-      const width = ctx.measureText(e.name).width + 18;
-      for (let attempt = 0; attempt < 12; attempt++) {
-        if (!placed.some(p => Math.abs(p.x - x) < (p.width + width) / 2 + 5 && Math.abs(p.y - tagY) < 23)) break;
-        tagY -= 24;
-        if (tagY < 100) { tagY = 110; x += width + 12; }
-      }
-      x = Math.max(width / 2 + 6, Math.min(W - width / 2 - 6, x));
-      placed.push({ x, y: tagY, width });
-      rect(x - width / 2, tagY - 15, width, 22, '#102432db');
-      label(e.name, x, tagY, 13, '#e3ead8');
-    }
+  function heightReference() {
+    if (!['playing', 'tutorial'].includes(model.mode)) return;
+    const x = 943, top = GROUND - CONFIG.PASSAGE_HEIGHT * CM;
+    line([[x, top], [x, GROUND]], '#d5ddc84d', 1);
+    for (const y of [top, GROUND - 100 * CM, GROUND]) line([[x - 5, y], [x + 4, y]], '#d5ddc88a', 1);
+    label('190cm', x - 9, top + 4, 10, '#d9e1cb', 'right');
+  }
+  function runnerOpacity() {
+    const top = GROUND - (model.headHeight * CM), bottom = GROUND - model.jumpY * CM;
+    const covered = model.events.some(e => {
+      if (e.kind !== 'obstacle' || !['straddle', 'jump'].includes(e.rule) || e.completed || e.z < -e.length) return false;
+      const p = project(e.z), objectTop = p.y - e.height * CM * p.s;
+      return objectTop < bottom && p.y > top;
+    });
+    return covered ? 0.38 : 1;
   }
   function frame(now) {
     const dt = lastTime === null ? 0 : (now - lastTime) / 1000; lastTime = now;
@@ -696,5 +648,5 @@
   // The iframe needs an explicit click in some browsers; autofocus is only a convenience.
   focusGame();
   // Opt-in inspection for automated tests. Never enabled during ordinary play.
-  if (new URLSearchParams(location.search).has('test')) window.__RUN188_TEST__ = { model, pause, draw, syncUI, project, storage };
+  if (new URLSearchParams(location.search).has('test')) window.__RUN188_TEST__ = { model, pause, draw, syncUI, project, storage, runnerOpacity, camera: { HORIZON, GROUND, CM } };
 })();
