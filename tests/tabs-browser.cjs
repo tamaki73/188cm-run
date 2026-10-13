@@ -10,7 +10,7 @@ const{chromium}=require('playwright'),assert=require('node:assert/strict'),fs=re
   await p.evaluate(()=>{__RUN188_TEST__.model.events=[];__RUN188_TEST__.model.spawnTimer=1e9;});await p.waitForFunction(()=>__RUN188_TEST__.music.running);
   for(let i=0;i<3;i++){
    // window.open creates a genuine sibling tab in the same browser window.
-   const promise=c.waitForEvent('page');await p.evaluate(()=>window.open('about:blank','_blank'));const other=await promise;const oc=await c.newCDPSession(other);await oc.send('Emulation.setFocusEmulationEnabled',{enabled:false});await other.bringToFront();
+   const promise=c.waitForEvent('page');const info=await pc.send('Target.getTargetInfo');await pc.send('Target.createTarget',{url:'about:blank',browserContextId:info.targetInfo.browserContextId,newWindow:false,background:false});const other=await promise;const oc=await c.newCDPSession(other);await oc.send('Emulation.setFocusEmulationEnabled',{enabled:false});await other.bringToFront();console.log('TAB WINDOWS',await pc.send('Browser.getWindowForTarget'),await oc.send('Browser.getWindowForTarget'));
    await p.waitForFunction(()=>document.hidden,null,{polling:100});await p.waitForTimeout(150);
    const before=await p.evaluate(()=>{const t=__RUN188_TEST__;return{hidden:document.hidden,frames:t.performanceStats.frames,draws:t.performanceStats.drawn,distance:t.model.distance,paused:t.model.paused,context:t.sound.context.state,music:t.music.running,notes:t.music.notes.size,voices:t.sound.voices.size}});
    await other.waitForTimeout(1800);

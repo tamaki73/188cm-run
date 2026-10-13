@@ -2,9 +2,9 @@
 const{chromium}=require('playwright'),fs=require('node:fs');
 (async()=>{const b=await chromium.launch({executablePath:process.env.CHROMIUM_PATH||'/usr/bin/chromium',args:['--no-sandbox']});try{
  fs.mkdirSync('docs/previews',{recursive:true});const c=await b.newContext({viewport:{width:1440,height:1080},deviceScaleFactor:1});await require('../tests/offline-config.cjs')(c);await c.addInitScript(()=>{localStorage.setItem('188cm-run:skipTutorial','true');localStorage.setItem('188cm-run:quality','high');localStorage.setItem('188cm-run:soundEnabled','false');localStorage.setItem('188cm-run:bgmEnabled','false');});
- const p=await c.newPage();await p.goto((process.env.GAME_TEST_URL||'http://127.0.0.1:8000/')+'?test');await p.screenshot({path:'docs/previews/liquid-title-desktop.png',fullPage:true});
- await p.locator('#tutorial-button').click();await p.evaluate(()=>{const t=__RUN188_TEST__;t.model.tutorial.step=2;t.model.setupLesson();t.model.paused=true;t.syncUI();});await p.addStyleTag({content:'#pause-panel{display:none!important}'});await p.screenshot({path:'docs/previews/liquid-tutorial-desktop.png',fullPage:true});
- await p.setViewportSize({width:390,height:844});await p.waitForTimeout(100);await p.screenshot({path:'docs/previews/liquid-tutorial-mobile.png',fullPage:true});await p.locator('#lesson-title-button').click();await p.screenshot({path:'docs/previews/liquid-title-mobile.png',fullPage:true});
+ const p=await c.newPage();await p.goto((process.env.GAME_TEST_URL||'http://127.0.0.1:8000/')+'?test');await p.waitForTimeout(250);await p.screenshot({path:'docs/previews/liquid-title-desktop.png',fullPage:true});
+ await p.locator('#tutorial-button').click();await p.evaluate(()=>{const t=__RUN188_TEST__;t.model.tutorial.step=2;t.model.setupLesson();t.model.paused=true;t.syncUI();});await p.addStyleTag({content:'#pause-panel{display:none!important}'});await p.waitForTimeout(250);await p.screenshot({path:'docs/previews/liquid-tutorial-desktop.png',fullPage:true});
+ await p.setViewportSize({width:390,height:844});await p.waitForTimeout(100);await p.waitForTimeout(250);await p.screenshot({path:'docs/previews/liquid-tutorial-mobile.png',fullPage:true});await p.locator('#lesson-title-button').click();await p.waitForTimeout(250);await p.screenshot({path:'docs/previews/liquid-title-mobile.png',fullPage:true});
  await p.setViewportSize({width:1440,height:1080});
  for(const gallery of['themes','poses']){
   await p.evaluate(gallery=>{
