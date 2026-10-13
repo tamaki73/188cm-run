@@ -23,7 +23,7 @@
   let reducedEffects = storage.get('reducedEffects', String(matchMedia('(prefers-reduced-motion: reduce)').matches)) === 'true';
   let lastWarningAt = -Infinity, resultVersion = 0;
   let renderScale = 1, hazeGradient, vignetteGradient, floorShade;
-  let frameID = 0, lastDraw = -Infinity, visualDT = 0;
+  let frameID = 0, lastDraw = -Infinity, visualDT = 0, lastUI = -Infinity, lastPaused = false;
   const performanceStats = { frames: 0, drawn: 0, lastCost: 0, maxCost: 0 };
   const drawEvents = [], materials = new Map();
   function material(base,light,dark,width=70) {
@@ -761,7 +761,9 @@
   function runner() {
     const p=rig.update(model,visualDT,ambientTime,project),jumpOffset=model.jumpY*CM;
     ctx.save();
-    if(quality.preset.shadows){ctx.fillStyle='#07132255';ctx.beginPath();ctx.ellipse(CX+6,GROUND+3,45-Math.min(14,model.jumpY*.18),10,0,0,Math.PI*2);ctx.fill();}
+    if(quality.preset.shadows){ctx.fillStyle='#07132230';ctx.beginPath();ctx.ellipse(CX+6,GROUND-9,45-Math.min(14,model.jumpY*.18),8,0,0,Math.PI*2);ctx.fill();}
+    // Tight shoe shadows sit at the actual planted soles, avoiding a floating runner.
+    if(!p.air)for(const leg of p.legs)if(leg.contact){ctx.fillStyle='#07132266';ctx.beginPath();ctx.ellipse(CX+leg.ankle[0],GROUND+leg.ankle[1]+11,17,3,0,0,Math.PI*2);ctx.fill();}
     ctx.globalAlpha*=runnerOpacity();ctx.translate(CX,GROUND-jumpOffset);ctx.lineCap='round';ctx.lineJoin='round';
     function limb(points,shade,width){line(points,'#13212ddd',width+3);line(points,shade,width);line(points.map(([x,y])=>[x+3,y]),'#b6c8d22d',3);}
     // Back-view two-bone legs: seams and knee folds follow the joints, not a stretched sprite.
@@ -789,7 +791,7 @@
     const rightArm=armPose(rightShoulder,target,reaching?1:.28);
     const leftArm=armPose([-31+sway,shoulder],[-58-swing*.3,shoulder+84-Math.cos(p.phase)*12],.28);
     for(const [original,side] of [[leftArm,-1],[rightArm,1]]){
-      const arm=(reaching&&side===1)?original:{shoulder:original.shoulder,elbow:[original.shoulder[0]+(original.elbow[0]-original.shoulder[0])*.32,original.shoulder[1]+(original.elbow[1]-original.shoulder[1])*.86],hand:[original.shoulder[0]+(original.hand[0]-original.shoulder[0])*.65,original.shoulder[1]+(original.hand[1]-original.shoulder[1])*.84]};
+      const arm=(reaching&&side===1)?original:{shoulder:original.shoulder,elbow:[original.shoulder[0]+(original.elbow[0]-original.shoulder[0])*.32,original.shoulder[1]+(original.elbow[1]-original.shoulder[1])*.86],hand:[original.shoulder[0]+(original.hand[0]-original.shoulder[0])*.65,original.shoulder[1]+(original.hand[1]-original.shoulder[1])*.55+(p.air?-18:Math.sin(p.phase)*side*14)]};
       line([arm.shoulder,arm.elbow,arm.hand],side<0?'#b08c72':'#d0ac8c',13);
       const sleeve=[arm.shoulder[0]+(arm.elbow[0]-arm.shoulder[0])*.48,arm.shoulder[1]+(arm.elbow[1]-arm.shoulder[1])*.48];
       line([arm.shoulder,sleeve],side<0?'#131820':'#33353d',19);line([arm.elbow,arm.hand],'#f0ccb22b',4);circle(...arm.hand,7,side<0?'#b79274':'#d8b594');
@@ -860,7 +862,10 @@
     if(dt>.5&&!model.paused)pause();
     if(resumeAt){const remaining=resumeAt-now;$('countdown').textContent=String(Math.max(1,Math.ceil(remaining/1000)));if(remaining<=0){resumeAt=0;model.paused=false;}}
     else model.update(dt,touchCrouch||['ArrowDown','ShiftLeft','ShiftRight'].some(k=>held.has(k)),touchStraddle||held.has('KeyS'));
-    syncUI();
+    // Audio follows every simulation tick. DOM counters only need 15 Hz;
+    // mode changes and button actions still update immediately.
+    sound.consume(model.soundEvents.splice(0),model);music.update(model,document.hidden);
+    if(now-lastUI>=1000/15 || uiMode!==model.mode || lastPaused!==model.paused){syncUI();lastUI=now;lastPaused=model.paused;}
     const active=['playing','tutorial'].includes(model.mode)&&!model.paused;
     const interval=active?0:model.paused?1000/15:1000/30;
     if(now-lastDraw>=interval-.5){

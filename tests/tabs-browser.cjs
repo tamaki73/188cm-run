@@ -6,12 +6,12 @@ const{chromium}=require('playwright'),assert=require('node:assert/strict'),fs=re
  const stats=[];
  try{
   const c=await b.newContext({viewport:{width:1280,height:900}});await require('./offline-config.cjs')(c);await c.addInitScript(()=>{localStorage.setItem('188cm-run:skipTutorial','true');localStorage.setItem('188cm-run:nicknameAsked','true');});
-  const p=await c.newPage(),errors=[];p.on('pageerror',e=>errors.push(e.message));await p.goto((process.env.GAME_TEST_URL||'http://127.0.0.1:8000/')+'?test');await p.bringToFront();await p.locator('#start-button').click();
+  const p=await c.newPage(),errors=[];p.on('pageerror',e=>errors.push(e.message));await p.goto((process.env.GAME_TEST_URL||'http://127.0.0.1:8000/')+'?test');const pc=await c.newCDPSession(p);await pc.send('Emulation.setFocusEmulationEnabled',{enabled:false});await p.bringToFront();await p.locator('#start-button').click();
   await p.evaluate(()=>{__RUN188_TEST__.model.events=[];__RUN188_TEST__.model.spawnTimer=1e9;});await p.waitForFunction(()=>__RUN188_TEST__.music.running);
   for(let i=0;i<3;i++){
    // window.open creates a genuine sibling tab in the same browser window.
-   const promise=c.waitForEvent('page');await p.evaluate(()=>window.open('about:blank','_blank'));const other=await promise;await other.bringToFront();
-   await p.waitForFunction(()=>document.hidden);await p.waitForTimeout(150);
+   const promise=c.waitForEvent('page');await p.evaluate(()=>window.open('about:blank','_blank'));const other=await promise;const oc=await c.newCDPSession(other);await oc.send('Emulation.setFocusEmulationEnabled',{enabled:false});await other.bringToFront();
+   await p.waitForFunction(()=>document.hidden,null,{polling:100});await p.waitForTimeout(150);
    const before=await p.evaluate(()=>{const t=__RUN188_TEST__;return{hidden:document.hidden,frames:t.performanceStats.frames,draws:t.performanceStats.drawn,distance:t.model.distance,paused:t.model.paused,context:t.sound.context.state,music:t.music.running,notes:t.music.notes.size,voices:t.sound.voices.size}});
    await other.waitForTimeout(1800);
    const after=await p.evaluate(()=>{const t=__RUN188_TEST__;return{frames:t.performanceStats.frames,draws:t.performanceStats.drawn,distance:t.model.distance}});

@@ -262,3 +262,5 @@ body[data-quality=low] .title-card,body[data-quality=low] .result-card,body[data
 .play-layout[data-mode=title] .play-hint .eyebrow { display: none; }
 #settings-dialog .sound-toggle { margin: 18px 0 10px; }
 #settings-dialog .volume-label { margin-top: 15px; margin-bottom: 4px; font-size: 13px; }
+
+.play-layout[data-mode=title] .play-hint small { display: none; }
