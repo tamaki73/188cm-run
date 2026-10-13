@@ -28,6 +28,7 @@ const assert = require('node:assert/strict');
     assert.equal(await frame.evaluate(() => scrollY), 0);
     // Holding E cannot silently collect an arriving item through key repeat.
     await frame.locator('#skip-checkbox').check(); await frame.locator('#skip-button').click();
+    await frame.locator('#nickname-skip').click(); await frame.waitForFunction(() => __RUN188_TEST__.model.mode === 'playing');
     await frame.evaluate(() => { const g = __RUN188_TEST__.model; g.events = [g.makeItem(Run188.ITEMS[0], 0)]; g.spawnTimer = 100; });
     await page.keyboard.down('e'); assert.equal(await frame.evaluate(() => __RUN188_TEST__.model.items), 1);
     await frame.evaluate(() => { const g = __RUN188_TEST__.model; g.events = [g.makeItem(Run188.ITEMS[0], 0)]; });

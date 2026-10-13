@@ -12,7 +12,7 @@
     set(key, value) { try { localStorage.setItem('188cm-run:' + key, String(value)); } catch { /* Colab may disable storage. Keep playing. */ } }
   };
   const ranking = new Run188Ranking.Ranking(window.RUN188_ONLINE_CONFIG, storage);
-  let nicknameStart = false;
+  let nicknameStart = false, nicknameAsked = storage.get('nicknameAsked', 'false') === 'true';
   let best = Number(storage.get('best', '0')) || 0;
   let lastTime = null, uiMode = '', lessonIndex = -1, soundEnabled = false, audioContext;
   let resumeAt = 0, touchCrouch = false, touchStraddle = false, lastItems = 0, ambientTime = 0;
@@ -58,7 +58,10 @@
   $('restart-button').addEventListener('click', startWithName);
   $('back-button').addEventListener('click', () => activate(() => model.title()));
   $('home-link').addEventListener('click', e => { e.preventDefault(); activate(() => model.title()); });
-  $('next-button').addEventListener('click', () => activate(() => model.nextLesson()));
+  $('next-button').addEventListener('click', () => {
+    if (model.mode === 'tutorial' && model.tutorial.done && model.tutorial.step === LESSONS.length - 1) startWithName();
+    else activate(() => model.nextLesson());
+  });
   $('pause-button').addEventListener('click', pause);
   $('resume-button').addEventListener('click', resume);
   $('skip-checkbox').checked = storage.get('skipTutorial', 'false') === 'true';
@@ -66,7 +69,7 @@
     storage.set('skipTutorial', $('skip-checkbox').checked);
     $('skip-button').disabled = !$('skip-checkbox').checked;
   });
-  $('skip-button').addEventListener('click', () => { if ($('skip-checkbox').checked) activate(() => model.start()); });
+  $('skip-button').addEventListener('click', () => { if ($('skip-checkbox').checked) startWithName(); });
   $('sound-button').addEventListener('click', () => {
     soundEnabled = !soundEnabled; $('sound-button').textContent = '音：' + (soundEnabled ? 'オン' : 'オフ');
     $('sound-button').setAttribute('aria-pressed', String(soundEnabled)); tone(660); focusGame();
@@ -117,7 +120,7 @@
     document.querySelectorAll('.distance-best').forEach(el => { el.textContent = text; });
   }
   function startWithName() {
-    if (!ranking.name && storage.get('nicknameAsked', 'false') !== 'true') {
+    if (!ranking.name && !nicknameAsked) {
       nicknameStart = true; openRanking(false); $('nickname-skip').hidden = false; $('nickname').focus(); return;
     }
     activate(() => model.start());
@@ -171,14 +174,14 @@
   $('ranking-close').addEventListener('click', () => $('ranking-dialog').close());
   $('ranking-dialog').addEventListener('close', () => {
     ++rankingRequest; $('ranking-refresh').disabled = false;
-    if (nicknameStart) { nicknameStart = false; storage.set('nicknameAsked', true); activate(() => model.start()); }
+    if (nicknameStart) { nicknameStart = false; nicknameAsked = true; storage.set('nicknameAsked', true); activate(() => model.start()); }
     else focusGame();
   });
   $('nickname-skip').addEventListener('click', () => $('ranking-dialog').close());
   $('nickname-form').addEventListener('submit', e => {
     e.preventDefault();
     try {
-      ranking.setName($('nickname').value); storage.set('nicknameAsked', true); $('nickname-error').textContent = '名前を保存しました。';
+      ranking.setName($('nickname').value); nicknameAsked = true; storage.set('nicknameAsked', true); $('nickname-error').textContent = '名前を保存しました。';
       // A renamed player keeps the same anonymous account and its existing best.
       if (ranking.best > 0) ranking.pending = Math.max(ranking.pending || 0, ranking.best);
       if (nicknameStart) $('ranking-dialog').close();
