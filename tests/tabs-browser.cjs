@@ -22,5 +22,5 @@ const wait=ms=>new Promise(r=>setTimeout(r,ms));
    await send('Target.activateTarget',{targetId:target});await until('!document.hidden');assert.equal(await evaluate('__RUN188_TEST__.model.paused'),true);await click('resume-button');await until('!__RUN188_TEST__.model.paused&&__RUN188_TEST__.music.running');const resumed=await evaluate(expression);assert.ok(resumed.distance-before.distance<20);stats.push({before,after,resumed});
   }
   fs.writeFileSync('work/tabs-results.json',JSON.stringify(stats,null,2));console.log('PASS: four native tabs / three switches; actual visibility, stopped rAF/audio/context, controlled resume',stats);
- }finally{ws?.close();child.kill();await new Promise(r=>child.exitCode!==null?r():child.once('exit',r));fs.rmSync(profile,{recursive:true,force:true});}
+ }finally{ws?.close();child.kill();await new Promise(r=>child.exitCode!==null?r():child.once('exit',r));fs.rmSync(profile,{recursive:true,force:true,maxRetries:10,retryDelay:100});}
 })().catch(e=>{console.error(e);process.exitCode=1});
