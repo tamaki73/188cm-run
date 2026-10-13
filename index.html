@@ -25,7 +25,7 @@
       <div class="scene-meta"><span id="mode-label">街を走る、あなたの物語。</span><span>身長 <b>188</b> cm</span></div>
       <button class="pause-button" id="pause-button" aria-label="一時停止" hidden>Ⅱ</button>
       <section class="overlay" id="title-panel" hidden>
-        <div class="title-card"><span class="eyebrow">頭上に、気をつけて。</span><h1>188<span>cm</span><br>RUN<span class="lime">.</span></h1><p>いつもの入口。少し高い目線。<br>その一瞬の判断が、走りを変える。</p><button class="primary" id="start-button">走り出す <span>→</span></button><button class="text-button" id="tutorial-button">チュートリアルで練習する</button><div class="best">自己ベスト <strong id="best-score">0</strong></div></div>
+        <div class="title-card"><span class="eyebrow">頭上に、気をつけて。</span><h1>188<span>cm</span><br>RUN<span class="lime">.</span></h1><p>いつもの入口。少し高い目線。<br>その一瞬の判断が、走りを変える。</p><button class="primary" id="start-button">走り出す <span>→</span></button><button class="text-button" id="tutorial-button">チュートリアルで練習する</button><button class="text-button ranking-open">友達とのランキングを見る</button><div class="distance-best"></div><div class="best">スコア自己ベスト <strong id="best-score">0</strong></div></div>
       </section>
       <section class="tutorial-panel" id="tutorial-panel" hidden aria-label="チュートリアル">
         <div class="lesson-heading"><span class="eyebrow">チュートリアル <b id="lesson-step">1 / 9</b></span><button class="text-button" id="lesson-title-button">タイトルへ</button></div>
@@ -33,7 +33,7 @@
         <div class="skip-row"><label><input type="checkbox" id="skip-checkbox"> 次回からチュートリアルを表示しない</label><button id="skip-button" class="text-button" disabled>チュートリアルをスキップ</button></div>
       </section>
       <section class="overlay" id="over-panel" hidden>
-        <div class="result-card"><span class="eyebrow">おつかれさまでした</span><h2>GAME OVER<span class="lime">.</span></h2><p id="over-reason" role="alert"></p><div class="result-score"><span>最終スコア</span><strong id="final-score">0</strong></div><div class="result-details"><span>走行距離 <b id="final-distance">0 m</b></span><span>アイテム <b id="final-items">0 個</b></span></div><button id="restart-button" class="primary">もう一度走る <kbd>Enter</kbd></button><button id="back-button" class="text-button">タイトルへ戻る</button></div>
+        <div class="result-card"><span class="eyebrow">おつかれさまでした</span><h2>GAME OVER<span class="lime">.</span></h2><p id="over-reason" role="alert"></p><div class="result-score"><span>最終スコア</span><strong id="final-score">0</strong></div><div class="result-details"><span>走行距離 <b id="final-distance">0 m</b></span><span>アイテム <b id="final-items">0 個</b></span></div><div class="understanding"><span id="final-understanding">高身長への理解度：0％</span><div class="track" role="progressbar" aria-label="高身長への理解度" aria-valuemin="0" aria-valuemax="100" id="understanding-track"><i id="understanding-bar"></i></div></div><p id="save-status" role="status"></p><button class="text-button ranking-open">友達とのランキングを見る</button><button id="restart-button" class="primary">もう一度走る <kbd>Enter</kbd></button><button id="back-button" class="text-button">タイトルへ戻る</button></div>
       </section>
       <section class="overlay pause-overlay" id="pause-panel" hidden><div class="pause-card"><span class="eyebrow">ひと休み</span><h2>一時停止中</h2><p>3秒後に再開します。<br>姿勢キーはカウント中も押せます。</p><button id="resume-button" class="primary">ゲームに戻る →</button></div></section>
       <div class="countdown" id="countdown" hidden aria-live="polite">3</div>
@@ -43,6 +43,18 @@
     <p class="footnote">アイテムは近づいてE。取り逃がすと終了します。<span>病名・負荷・身体能力はゲーム内の演出です。遊具や標識への現実の行動は勧めません。</span></p>
     <nav class="touch-controls" aria-label="タッチ操作"><button id="touch-crouch">しゃがむ（長押し）</button><button id="touch-straddle">またぐ（長押し）</button><button id="touch-jump">ジャンプ</button><button id="touch-grab">取る</button></nav>
   </main>
+  <dialog id="ranking-dialog" aria-labelledby="ranking-title">
+    <div class="ranking-heading"><h2 id="ranking-title">友達とのランキング</h2><button id="ranking-close" class="text-button" aria-label="ランキングを閉じる">閉じる ×</button></div>
+    <p class="ranking-note">走行距離で競う上位10人。理解度はゲーム内の演出です。</p>
+    <p class="distance-best"></p><p id="ranking-status" role="status" aria-live="polite"></p>
+    <div class="ranking-scroll"><table><thead><tr><th>順位</th><th>ニックネーム</th><th>距離</th><th>理解度</th></tr></thead><tbody id="ranking-rows"></tbody></table></div>
+    <div class="ranking-actions"><button id="ranking-refresh" class="primary compact">ランキングを更新</button><button id="ranking-send" class="text-button">記録を再送信</button></div>
+    <form id="nickname-form"><label for="nickname">ニックネーム（1〜16文字）</label><div class="nickname-row"><input id="nickname" type="text" maxlength="32" autocomplete="off" placeholder="例：たまき" aria-describedby="nickname-help nickname-error"><button class="primary compact" type="submit">名前を保存</button></div><small id="nickname-help">本名・メールアドレスは不要です。同じ名前でも別の参加者として登録されます。</small><p id="nickname-error" role="alert"></p></form>
+    <button id="nickname-skip" class="text-button" hidden>名前を付けずに遊ぶ（記録はこの端末のみ）</button>
+    <small class="ranking-note">名前と自己ベストを公開します。ブラウザのデータを消すと別の参加者になります。保存領域が使えない場合、名前や参加者IDは次回に引き継がれません。</small>
+  </dialog>
+  <script src="online-config.js"></script>
+  <script src="ranking.js"></script>
   <script src="game-engine.js"></script>
   <script src="game.js"></script>
 </body>

@@ -14,6 +14,8 @@ const state = page => get(page, () => { const g = __RUN188_TEST__.model; return 
   const page = await context.newPage(); const errors = [];
   page.on('pageerror', e => errors.push(e.message));
   try {
+    await require('./offline-config.cjs')(context);
+    await page.addInitScript(() => { try { localStorage.setItem('188cm-run:nicknameAsked', 'true'); } catch {} });
     await page.goto(url + '?test'); await page.locator('#game').click({ position: { x: 700, y: 400 } });
     assert.equal((await state(page)).mode, 'tutorial');
     await page.screenshot({ path: path.join(__dirname, '../work/tutorial.png') });
@@ -100,12 +102,17 @@ const state = page => get(page, () => { const g = __RUN188_TEST__.model; return 
     });
     // Storage-denied mode simulates browser restrictions common in embedded outputs.
     const blocked = await browser.newContext({ viewport: { width: 1100, height: 940 } });
+    await require('./offline-config.cjs')(blocked);
     await blocked.addInitScript(() => { Storage.prototype.getItem = function () { throw new DOMException('blocked', 'SecurityError'); }; Storage.prototype.setItem = function () { throw new DOMException('blocked', 'SecurityError'); }; });
     const blockedPage = await blocked.newPage(); blockedPage.on('pageerror', e => errors.push(e.message));
     await blockedPage.goto(url + '?test'); assert.equal((await state(blockedPage)).mode, 'tutorial');
     await blockedPage.locator('#skip-checkbox').check(); await blockedPage.locator('#skip-button').click();
+    await blockedPage.locator('#nickname-skip').click(); await blockedPage.waitForFunction(() => __RUN188_TEST__.model.mode === 'playing');
+    await blockedPage.evaluate(() => { __RUN188_TEST__.model.gameOver('test'); __RUN188_TEST__.syncUI(); });
+    await blockedPage.locator('#restart-button').click();
+    assert.equal(await blockedPage.locator('#ranking-dialog').isVisible(), false);
     assert.equal((await state(blockedPage)).mode, 'playing'); await blocked.close();
-    console.log('PASS: all 40 event designs and seven areas render and localStorage denial does not stop play');
+    console.log('PASS: all 41 event designs and seven areas render and localStorage denial does not stop play');
     await page.setViewportSize({ width: 390, height: 850 }); await page.goto(url + '?test');
     await page.locator('#tutorial-button').click(); await page.screenshot({ path: path.join(__dirname, '../work/mobile.png') });
     assert.equal(await page.evaluate(() => document.documentElement.scrollWidth > innerWidth), false);

@@ -3,18 +3,21 @@
   'use strict';
   const { CONFIG, LESSONS, GameModel } = window.Run188;
   const $ = id => document.getElementById(id);
-  const game = $('game'), canvas = $('canvas'), ctx = canvas.getContext('2d');
+  const game = $('game'), canvas = $('canvas');
+  let ctx = canvas.getContext('2d');
   const model = new GameModel();
   const held = new Set();
   const storage = {
     get(key, fallback) { try { return localStorage.getItem('188cm-run:' + key) ?? fallback; } catch { return fallback; } },
     set(key, value) { try { localStorage.setItem('188cm-run:' + key, String(value)); } catch { /* Colab may disable storage. Keep playing. */ } }
   };
+  const ranking = new Run188Ranking.Ranking(window.RUN188_ONLINE_CONFIG, storage);
+  let nicknameStart = false, nicknameAsked = storage.get('nicknameAsked', 'false') === 'true';
   let best = Number(storage.get('best', '0')) || 0;
   let lastTime = null, uiMode = '', lessonIndex = -1, soundEnabled = false, audioContext;
   let resumeAt = 0, touchCrouch = false, touchStraddle = false, lastItems = 0, ambientTime = 0;
   let reducedEffects = storage.get('reducedEffects', String(matchMedia('(prefers-reduced-motion: reduce)').matches)) === 'true';
-  let lastWarningAt = -Infinity;
+  let lastWarningAt = -Infinity, resultVersion = 0;
   const W = 960, H = 680, CX = 480, HORIZON = 246, GROUND = 636, CM = 1.38;
 
   function focusGame() { game.focus({ preventScroll: true }); $('focus-tip').hidden = true; }
@@ -49,13 +52,16 @@
   function jump() { if (model.jump()) tone(290, 0.13, 'triangle'); }
   function grab() { model.grab(); }
 
-  $('start-button').addEventListener('click', () => activate(() => model.start()));
+  $('start-button').addEventListener('click', startWithName);
   $('tutorial-button').addEventListener('click', () => activate(() => model.startTutorial()));
   $('lesson-title-button').addEventListener('click', () => activate(() => model.title()));
-  $('restart-button').addEventListener('click', () => activate(() => model.start()));
+  $('restart-button').addEventListener('click', startWithName);
   $('back-button').addEventListener('click', () => activate(() => model.title()));
   $('home-link').addEventListener('click', e => { e.preventDefault(); activate(() => model.title()); });
-  $('next-button').addEventListener('click', () => activate(() => model.nextLesson()));
+  $('next-button').addEventListener('click', () => {
+    if (model.mode === 'tutorial' && model.tutorial.done && model.tutorial.step === LESSONS.length - 1) startWithName();
+    else activate(() => model.nextLesson());
+  });
   $('pause-button').addEventListener('click', pause);
   $('resume-button').addEventListener('click', resume);
   $('skip-checkbox').checked = storage.get('skipTutorial', 'false') === 'true';
@@ -63,7 +69,7 @@
     storage.set('skipTutorial', $('skip-checkbox').checked);
     $('skip-button').disabled = !$('skip-checkbox').checked;
   });
-  $('skip-button').addEventListener('click', () => { if ($('skip-checkbox').checked) activate(() => model.start()); });
+  $('skip-button').addEventListener('click', () => { if ($('skip-checkbox').checked) startWithName(); });
   $('sound-button').addEventListener('click', () => {
     soundEnabled = !soundEnabled; $('sound-button').textContent = '音：' + (soundEnabled ? 'オン' : 'オフ');
     $('sound-button').setAttribute('aria-pressed', String(soundEnabled)); tone(660); focusGame();
@@ -87,7 +93,7 @@
     if (model.paused) return;
     if (e.code === 'Space') jump();
     if (e.code === 'KeyE') grab();
-    if (e.code === 'Enter' && model.mode === 'gameover') activate(() => model.start());
+    if (e.code === 'Enter' && model.mode === 'gameover') startWithName();
   });
   window.addEventListener('keyup', e => {
     held.delete(e.code);
@@ -109,15 +115,106 @@
   bindTouch('touch-straddle', () => { touchStraddle = true; }, () => { touchStraddle = false; });
   bindTouch('touch-jump', jump); bindTouch('touch-grab', grab);
 
+  function updateDistanceBest() {
+    const text = '距離自己ベスト ' + ranking.best.toLocaleString('ja-JP') + ' m　高身長への理解度：' + Run188Ranking.understanding(ranking.best) + '％';
+    document.querySelectorAll('.distance-best').forEach(el => { el.textContent = text; });
+  }
+  function startWithName() {
+    if (!ranking.name && !nicknameAsked) {
+      nicknameStart = true; openRanking(false); $('nickname-skip').hidden = false; $('nickname').focus(); return;
+    }
+    activate(() => model.start());
+  }
+  async function sendRecord() {
+    const version = resultVersion;
+    $('save-status').textContent = 'オンラインに記録を送信中…';
+    $('ranking-send').disabled = true;
+    try {
+      const result = await ranking.send();
+      const text = ranking.pending !== null ? '前の記録の送信が完了しました。最新の記録は未送信です。60秒後に再送信してください。' : result.changed ? 'オンラインに自己ベストを保存しました。' : 'オンラインの自己ベストを確認しました。';
+      if (version === resultVersion) $('save-status').textContent = text;
+      $('ranking-status').textContent = text; updateDistanceBest();
+    } catch (e) {
+      const text = 'オンライン保存を確認できませんでした。' + onlineError(e) + ' 記録はこの端末に残っています。';
+      if (version === resultVersion) $('save-status').textContent = text;
+      $('ranking-status').textContent = text;
+    } finally { $('ranking-send').disabled = ranking.busy; }
+  }
+  function onlineError(e) {
+    if (e.code === 'permission-denied' || e.code === 'firestore/permission-denied') return '送信間隔（60秒）・アクセス設定を確認し、後で再送信してください。';
+    if (e.code?.includes('auth/')) return '匿名認証またはブラウザの接続を確認してください。';
+    return e.message || '通信に失敗しました。時間をおいて再試行してください。';
+  }
+  async function refreshRanking() {
+    const request = ++rankingRequest;
+    $('ranking-rows').replaceChildren();
+    $('ranking-status').textContent = 'ランキングを読み込み中…'; $('ranking-refresh').disabled = true;
+    try {
+      const rows = await ranking.top();
+      if (request !== rankingRequest) return;
+      rows.forEach((row, index) => {
+        const tr = document.createElement('tr');
+        for (const value of [index + 1, row.nickname, row.distance.toLocaleString('ja-JP') + ' m', Run188Ranking.understanding(row.distance) + '％']) {
+          const td = document.createElement('td'); td.textContent = value; tr.append(td);
+        }
+        $('ranking-rows').append(tr);
+      });
+      $('ranking-status').textContent = rows.length ? '距離順のランキングです。' : 'まだ記録がありません。最初の記録を目指そう。'; updateDistanceBest();
+    } catch (e) { if (request === rankingRequest) $('ranking-status').textContent = onlineError(e); }
+    finally { if (request === rankingRequest) $('ranking-refresh').disabled = false; }
+  }
+  let rankingRequest = 0;
+  function openRanking(load = true) {
+    $('nickname').value = ranking.name; $('nickname-error').textContent = ''; updateDistanceBest();
+    $('nickname-skip').hidden = !nicknameStart;
+    $('ranking-send').hidden = !ranking.enabled || ranking.pending === null;
+    $('ranking-refresh').hidden = !ranking.enabled;
+    if (!$('ranking-dialog').open) $('ranking-dialog').showModal();
+    if (load && ranking.enabled) refreshRanking();
+    else $('ranking-status').textContent = ranking.enabled ? '名前を決めて走り出そう。' : 'オンラインランキングは未設定です。ゲームとこの端末の記録は利用できます。';
+  }
+  document.querySelectorAll('.ranking-open').forEach(button => button.addEventListener('click', () => openRanking()));
+  $('ranking-close').addEventListener('click', () => $('ranking-dialog').close());
+  $('ranking-dialog').addEventListener('close', () => {
+    ++rankingRequest; $('ranking-refresh').disabled = false;
+    if (nicknameStart) { nicknameStart = false; nicknameAsked = true; storage.set('nicknameAsked', true); activate(() => model.start()); }
+    else focusGame();
+  });
+  $('nickname-skip').addEventListener('click', () => $('ranking-dialog').close());
+  $('nickname-form').addEventListener('submit', e => {
+    e.preventDefault();
+    try {
+      ranking.setName($('nickname').value); nicknameAsked = true; storage.set('nicknameAsked', true); $('nickname-error').textContent = '名前を保存しました。';
+      // A renamed player keeps the same anonymous account and its existing best.
+      if (ranking.best > 0) ranking.pending = Math.max(ranking.pending || 0, ranking.best);
+      if (nicknameStart) $('ranking-dialog').close();
+      else if (ranking.enabled && ranking.pending !== null) sendRecord();
+    } catch (error) { $('nickname-error').textContent = error.message; }
+  });
+  $('ranking-refresh').addEventListener('click', refreshRanking);
+  $('ranking-send').addEventListener('click', sendRecord);
+  updateDistanceBest();
+
   function syncUI() {
     const active = ['playing', 'tutorial'].includes(model.mode);
     if (uiMode !== model.mode) {
       if (model.mode === 'gameover') {
+        resultVersion++; $('save-status').textContent = '記録が範囲外のため、オンラインに送信しませんでした。';
         best = Math.max(best, model.score); storage.set('best', best); tone(120, 0.45, 'triangle');
         $('over-reason').textContent = model.reason;
         $('final-score').textContent = model.score.toLocaleString('ja-JP');
         $('final-distance').textContent = Math.floor(model.distance).toLocaleString('ja-JP') + ' m';
         $('final-items').textContent = model.items + ' 個';
+        const percent = Run188Ranking.understanding(model.distance);
+        $('final-understanding').textContent = '高身長への理解度：' + percent + '％';
+        $('understanding-bar').style.width = percent + '%';
+        $('understanding-track').setAttribute('aria-valuenow', String(percent));
+        if (ranking.record(model.distance, model.elapsed)) {
+          $('save-status').textContent = 'この端末に記録しました。';
+          updateDistanceBest();
+          if (ranking.enabled && ranking.name) sendRecord();
+        }
+
       }
       $('title-panel').hidden = model.mode !== 'title';
       $('over-panel').hidden = model.mode !== 'gameover';
@@ -196,8 +293,12 @@
   function label(text, x, y, size, color = '#dde8ec', align = 'center') {
     ctx.font = `600 ${size}px "Yu Gothic", sans-serif`; ctx.textAlign = align; ctx.fillStyle = color; ctx.fillText(text, x, y);
   }
-  function background() {
-    const area = model.area;
+  const skyCache = new Map();
+  function skyLayer(area) {
+    if (skyCache.has(area.id)) return skyCache.get(area.id);
+    const surface = document.createElement('canvas'); surface.width = W; surface.height = HORIZON + 70;
+    const mainContext = ctx; ctx = surface.getContext('2d');
+    try {
     const sky = ctx.createLinearGradient(0, 0, 0, HORIZON + 70);
     sky.addColorStop(0, '#273e52'); sky.addColorStop(0.55, area.sky); sky.addColorStop(1, '#d3ceae');
     rect(0, 0, W, H, sky);
@@ -224,26 +325,59 @@
       if (area.id === 'bus') { rect(386, 258, 188, 86, '#749798'); rect(394, 266, 172, 70, '#a0b8ad'); label('路線バス', 480, 298, 14, '#34545b'); }
       if (area.id === 'home') { rect(363, 242, 234, 102, '#8b8167'); rect(386, 260, 188, 84, '#c3c3a2'); }
     }
+    } finally { ctx = mainContext; }
+    skyCache.set(area.id, surface); return surface;
+  }
+  function sceneryAt(distance) {
+    const lookup = model.mode === 'tutorial' ? Run188.areaAt : d => model.areaAt(d);
+    const block = Math.floor(Math.max(0, distance) / CONFIG.AREA_LENGTH);
+    const current = lookup(distance), previous = block ? lookup(block * CONFIG.AREA_LENGTH - .01) : current;
+    const t = Math.min(1, (distance % CONFIG.AREA_LENGTH) / 40);
+    return { current, previous, mix: t * t * (3 - 2 * t) };
+  }
+  function mixColor(a, b, t) {
+    const n = parseInt(a.slice(1), 16), m = parseInt(b.slice(1), 16);
+    const channels = [16, 8, 0].map(shift => Math.round(((n >> shift) & 255) * (1-t) + ((m >> shift) & 255) * t));
+    return 'rgb(' + channels.join(',') + ')';
+  }
+  // A fixed 88cm arm reaches 252cm with a 14cm shoulder lift during overhead reach.
+  // Only direction changes; shoulder-to-elbow + elbow-to-hand is identical in every pose.
+  function armPose(shoulder, target, extension = 1) {
+    const length = 88 * CM, dx = target[0] - shoulder[0], dy = target[1] - shoulder[1];
+    const angle = Math.atan2(dy, dx), bend = (1 - extension) * .9 * (shoulder[0] < 0 ? -1 : 1);
+    const elbow = [shoulder[0] + Math.cos(angle - bend) * length * .5, shoulder[1] + Math.sin(angle - bend) * length * .5];
+    const hand = [elbow[0] + Math.cos(angle + bend) * length * .5, elbow[1] + Math.sin(angle + bend) * length * .5];
+    return { shoulder, elbow, hand, length };
+  }
+
+  function background() {
+    const area = model.area;
+    const travel = ['title', 'gameover'].includes(model.mode) ? ambientTime * 4 : model.distance;
+    const scene = sceneryAt(travel);
+    ctx.drawImage(skyLayer(scene.previous), 0, 0);
+    if (scene.mix > 0) { ctx.globalAlpha = scene.mix; ctx.drawImage(skyLayer(scene.current), 0, 0); ctx.globalAlpha = 1; }
     // A continuous pavement grid, curbs and side structures move with travelled distance.
     const floor = ctx.createLinearGradient(0, HORIZON, 0, H);
-    floor.addColorStop(0, area.sky); floor.addColorStop(1, area.floor);
+    floor.addColorStop(0, mixColor(scene.previous.sky, scene.current.sky, scene.mix)); floor.addColorStop(1, mixColor(scene.previous.floor, scene.current.floor, scene.mix));
     poly([[CX - 45, HORIZON], [CX + 45, HORIZON], [W + 80, H], [-80, H]], floor);
     poly([[0, HORIZON], [CX - 45, HORIZON], [25, H], [0, H]], '#263e49');
     poly([[CX + 45, HORIZON], [W, HORIZON], [W, H], [935, H]], '#344953');
     line([[CX - 45, HORIZON], [25, H]], '#c7d2bc', 4); line([[CX + 45, HORIZON], [935, H]], '#c7d2bc', 4);
     for (const x of [-250, -125, 0, 125, 250]) line([[CX + x * 0.05, HORIZON], [CX + x * 1.55, H]], '#bdd2c425', 1);
-    const travel = ['title', 'gameover'].includes(model.mode) ? ambientTime * 4 : model.distance;
-    for (let i = 0; i < 22; i++) {
-      const z = i * 7 - travel % 7, { s, y } = project(z);
+    const firstLine = Math.floor((travel - 5) / 7);
+    for (let i = firstLine; i < firstLine + 25; i++) {
+      const z = i * 7 - travel, { s, y } = project(z);
       if (y < H + 30) line([[CX - 295 * s, y], [CX + 295 * s, y]], '#c7d4c63c', 1 + s);
     }
-    for (let i = 9; i >= 0; i--) {
-      const z = i * 15 - travel % 15;
-      if (z < 0) continue;
+    const firstFixture = Math.floor((travel - 8) / 15);
+    for (let i = firstFixture + 10; i >= firstFixture; i--) {
+      const z = i * 15 - travel;
+      if (z < -8) continue;
+      const fixtureArea = model.mode === 'tutorial' ? Run188.areaAt(Math.max(0, i * 15)) : model.areaAt(Math.max(0, i * 15));
       const { s, y } = project(z);
       const x = CX + (i % 2 ? -405 : 405) * s;
       ctx.save(); ctx.translate(x, y); ctx.scale(s, s);
-      if (area.id !== 'street') { areaFixture(area.id, i); ctx.restore(); continue; }
+      if (fixtureArea.id !== 'street') { areaFixture(fixtureArea.id, i); ctx.restore(); continue; }
       rect(-4, -245, 8, 245, '#2a414e'); line([[0, -245], [32, -270], [80, -270]], '#3e5562', 9);
       rect(55, -272, 31, 8, '#e0d5ac'); circle(69, -263, 14, '#f3da9320');
       rect(-115, -130, 82, 130, i % 3 ? '#52665e' : '#738277', '#758d89');
@@ -563,20 +697,23 @@
       line([[-21 - stride, -5 - Math.max(0, stride * .6)], [-4 - stride, -5 - Math.max(0, stride * .6)]], '#c4d8c9', 11);
       line([[11 + stride, -5 - Math.max(0, -stride * .6)], [30 + stride, -5 - Math.max(0, -stride * .6)]], '#d5e5d2', 11);
     }
+    const reachEffect = model.effects.find(f => ['reach', 'collect'].includes(f.type));
+    const reaching = Boolean(reachEffect);
+    const shoulderLift = reaching && reachEffect.high ? 14 * CM : 0;
     // Body and backpack, with folded torso when crouching.
-    poly([[-32 + sway * .3, shoulder + bob], [31 + sway * .3, shoulder + bob], [27, hips + 10], [-27, hips + 10]], '#c2df73', '#7eae68');
+    poly([[-32 + sway * .3, shoulder + bob], [31 + sway * .3, shoulder + bob - shoulderLift], [27, hips + 10], [-27, hips + 10]], '#c2df73', '#7eae68');
     rect(-18 + sway * .3, shoulder + 13 + bob, 37, 67, '#3b6770');
     rect(-13 + sway * .3, shoulder + 22 + bob, 27, 43, '#537f81');
     line([[-22, shoulder + 7], [-24, hips - 17]], '#e5edaa', 4);
     line([[23, shoulder + 7], [25, hips - 17]], '#e5edaa', 4);
     // Arms extend only after E, independent of whether the attempt succeeds.
-    const reaching = model.effects.some(f => ['reach', 'collect'].includes(f.type));
-    const reachEffect = model.effects.find(f => ['reach', 'collect'].includes(f.type));
-    const handY = reaching ? -Math.min(CONFIG.STANDING_REACH, Math.max(100, (reachEffect?.height ?? CONFIG.STANDING_REACH) - model.jumpY)) * CM : shoulder + 63;
-    line([[-31, shoulder + 11], [-43 - stride * .4, shoulder + 42], [-38 - stride * .55, shoulder + 76]], '#c4df78', 15);
-    line([[32, shoulder + 11], [reaching ? 61 : 44 + stride * .4, reaching ? shoulder - 6 : shoulder + 38], [reaching ? 106 : 39 + stride * .55, handY]], '#cce68b', 16);
-    circle(reaching ? 106 : 39 + stride * .55, handY, 8, '#dcba95');
-    circle(-38 - stride * .55, shoulder + 76, 8, '#cba681');
+    const rightShoulder = [32 + sway * .3, shoulder + bob - shoulderLift];
+    const target = reaching ? [reachEffect?.high ? 40 : 106, -(reachEffect?.high ? CONFIG.STANDING_REACH : Math.max(100, reachEffect?.height ?? 150)) * CM] : [60 + stride * .5, shoulder + 100];
+    const rightArm = armPose(rightShoulder, target, reaching ? 1 : .25);
+    const leftArm = armPose([-31 + sway * .3, shoulder + bob], [-65 - stride * .5, shoulder + 100], .25);
+    line([leftArm.shoulder, leftArm.elbow, leftArm.hand], '#c4df78', 15);
+    line([rightArm.shoulder, rightArm.elbow, rightArm.hand], '#cce68b', 16);
+    circle(...rightArm.hand, 8, '#dcba95'); circle(...leftArm.hand, 8, '#cba681');
     rect(-8, headY + 17, 16, shoulder - headY - 8, '#d6b392');
     // Head top is exactly -height: drawing and collisions share their geometry.
     circle(sway * .3, headY, 21, '#cbaa8a');
@@ -634,8 +771,8 @@
     const dt = lastTime === null ? 0 : (now - lastTime) / 1000; lastTime = now;
     ambientTime += Math.min(dt, 0.1);
     // A long interruption pauses rather than fast-forwarding into an unseen door.
-    // Short frame delays still consume their full elapsed time, just like normal frames.
-    if (dt > 0.75 && !model.paused) pause();
+    // Up to 500ms is simulated in full; longer stalls pause instead of a visible teleport.
+    if (dt > 0.5 && !model.paused) pause();
     if (resumeAt) {
       const remaining = resumeAt - now;
       $('countdown').textContent = String(Math.max(1, Math.ceil(remaining / 1000)));
@@ -648,5 +785,5 @@
   // The iframe needs an explicit click in some browsers; autofocus is only a convenience.
   focusGame();
   // Opt-in inspection for automated tests. Never enabled during ordinary play.
-  if (new URLSearchParams(location.search).has('test')) window.__RUN188_TEST__ = { model, pause, draw, syncUI, project, storage, runnerOpacity, camera: { HORIZON, GROUND, CM } };
+  if (new URLSearchParams(location.search).has('test')) window.__RUN188_TEST__ = { model, ranking, openRanking, refreshRanking, pause, draw, syncUI, project, storage, runnerOpacity, armPose, sceneryAt, skyCache, camera: { HORIZON, GROUND, CM } };
 })();
