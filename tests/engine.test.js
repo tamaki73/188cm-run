@@ -6,7 +6,7 @@ const { drive, simulate, seeded } = require('./virtual-player.cjs');
 const def = id => OBSTACLES.find(e => e.id === id);
 const itemDef = id => ITEMS.find(e => e.id === id);
 function fresh() { const g = new GameModel(); g.start(); g.spawnTimer = 1e9; return g; }
-function door(g, clearance, z = 1) { const e = g.makeObstacle(def('train'), clearance, z); g.events.push(e); return e; }
+function door(g, clearance, z = 1) { const e = g.makeObstacle(def('new-class'), clearance, z); g.events.push(e); return e; }
 function item(g, height, z = 0) { const e = g.makeItem({ ...itemDef('student-id'), min: height, max: height }, z); g.events.push(e); return e; }
 test('body constants reflect shoe-inclusive 190cm, inseam 90 and exact 75cm jump', () => {
   assert.equal(C.PLAYER_HEIGHT, 188); assert.equal(C.PASSAGE_HEIGHT, 190); assert.equal(C.INSEAM, 90);
@@ -62,18 +62,19 @@ test('E and distance are mandatory; misses end normal play with the item name', 
   const far = fresh(); item(far, 140, 20); assert.equal(far.grab(), false);
   const missed = fresh(); item(missed, 140); missed.update(1); assert.equal(missed.mode, 'gameover'); assert.equal(missed.reason, '学生証を取り逃がしました！');
 });
-test('crouch strain stages are 8/14/22% per second; short releases do not reset effort', () => {
-  const g = fresh(); g.update(2, true); assert.ok(Math.abs(g.strain - 16) < .1); g.update(2, true); assert.ok(Math.abs(g.strain - 44) < .1);
-  g.update(1, true); assert.ok(Math.abs(g.strain - 66) < .2); g.update(.05); const load = g.strain; g.update(.2, true); assert.ok(g.strain - load > 4.3);
+test('crouch strain stages are 15/25/35% per second; short releases do not reset effort', () => {
+  const g = fresh(); g.update(2, true); assert.ok(Math.abs(g.strain - 30) < .15); g.update(2, true); assert.ok(Math.abs(g.strain - 80) < .2);
+  g.update(.2, true); assert.ok(Math.abs(g.strain - 87) < .3); g.update(.05); const load = g.strain; g.update(.1, true); assert.ok(g.strain - load > 3.4);
   g.update(1); assert.equal(g.crouchEffort, 0);
+
 });
-test('normal running recovers a single total of 6%/s; straddle and jumps add fatigue', () => {
-  const g = fresh(); g.crouchStrain = 20; g.ankleStrain = 10; g.update(1); assert.ok(Math.abs(g.strain - 24) < .001);
-  const s = fresh(); s.update(1, false, true); assert.ok(Math.abs(s.strain - 10) < .001);
-  const j = fresh(); j.jump(); assert.equal(j.strain, 8); j.update(.5); assert.ok(Math.abs(j.strain - 7) < .001);
+test('normal running recovers a single total of 8%/s; straddle and jumps add fatigue', () => {
+  const g = fresh(); g.crouchStrain = 20; g.ankleStrain = 10; g.update(1); assert.ok(Math.abs(g.strain - 22) < .001);
+  const s = fresh(); s.update(1, false, true); assert.ok(Math.abs(s.strain - 20) < .001);
+  const j = fresh(); j.jump(); assert.equal(j.strain, 12); j.update(.5); assert.ok(Math.abs(j.strain - 11) < .001);
 });
 test('exhaustion causes keep their distinct messages', () => {
-  const crouch = fresh(); crouch.update(10, true); assert.equal(crouch.reason, '体への負担が限界に達しました！');
+  const crouch = fresh(); crouch.update(10, true); assert.equal(crouch.reason, 'ヘルニアになりました');
   const ankle = fresh(); for (let i = 0; i < 30 && ankle.mode === 'playing'; i++) { ankle.jump(); ankle.update(1.01); }
   assert.equal(ankle.reason, 'ジャンプのしすぎで足首をねんざしました！');
 });
@@ -90,7 +91,7 @@ test('area-specific spawning has reaction time, bounded forecast, no unreachable
   for (let i=0;i<2000;i++) {
     g.distance=i*7; g.elapsed=i*1.6; g.spawn(); const e=g.events.pop(); if(!e) continue;
     assert.notEqual(e.id,last); last=e.id; assert.ok(e.areas.includes(e.areaId)); assert.ok(e.arrivalTime-g.elapsed>=C.MIN_REACTION_TIME-1e-8);
-    assert.ok(e.arrivalTime-time>=1.3-1e-8); time=e.arrivalTime; assert.ok(g.planLoad<=C.PLANNER_STRAIN_LIMIT+1e-8);
+    assert.ok(e.arrivalTime-time>=1.3-1e-8); time=e.arrivalTime; assert.ok(g.planLoad<95); if(!e.endurance&&e.plannedCost>0) assert.ok(g.planLoad<=C.PLANNER_STRAIN_LIMIT+1e-8);
     if(e.kind==='item') assert.ok(e.height<=327);
   }
   assert.equal(AREAS.length,7); assert.equal(areaAt(0).id,'street'); assert.equal(areaAt(180*5).id,'park');
@@ -101,7 +102,7 @@ test('all nine tutorial lessons require real actions, retry failures and finish 
   while(g.mode==='tutorial') {
     const step=g.tutorial.step;
     if(step===2) { g.events[0].z=1; g.update(.2); assert.equal(g.mode,'tutorial'); assert.equal(g.tutorial.done,false); g.update(1.3); }
-    if(step===7) { g.update(1.6,true); g.update(1.5); assert.equal(g.tutorial.recovered,true); g.jump(); }
+    if(step===7) { g.update(1.6,true); g.update(3); assert.equal(g.tutorial.recovered,true); g.jump(); }
     else for(let frame=0;frame<1500&&!g.tutorial.done;frame++) drive(g);
     assert.equal(g.tutorial.done,true, 'step '+step); g.nextLesson();
   }
@@ -109,9 +110,36 @@ test('all nine tutorial lessons require real actions, retry failures and finish 
 });
 test('pause and restart clear scores, strain, posture, scheduling and all previous events', () => {
   const g=fresh(); g.jump(); g.update(.1); g.paused=true; const d=g.distance; g.update(3,true,true); assert.equal(g.distance,d);
-  g.start(); for(const f of ['distance','itemScore','items','crouchStrain','ankleStrain','crouchEffort','jumpY','jumpVelocity','elapsed','planTime','planLoad','completedEvents']) assert.equal(g[f],0);
+  g.start(); for(const f of ['distance','itemScore','items','crouchStrain','ankleStrain','crouchEffort','jumpY','jumpVelocity','elapsed','planTime','planLoad','planEndTime','recoveryUntil','completedEvents']) assert.equal(g[f],0);
+  assert.equal(g.grabReservation.remaining,0); assert.equal(g.grabReservation.uid,null);
   assert.equal(g.paused,false); assert.equal(g.straddling,false); assert.equal(g.crouching,false); assert.equal(g.events.length,0); assert.equal(g.speed,C.INITIAL_SPEED);
 });
 test('perfect virtual players survive mixed events over every area and maximum speed', () => {
-  for(const seed of [1,7,31]) { const r=simulate(seed,1000); assert.equal(r.count,1000); assert.equal(r.areas.size,7); assert.ok(r.peak<100); }
+  for(const seed of [1,7,31]) { const r=simulate(seed,1000); assert.equal(r.count,1000); assert.equal(r.areas.size,7); assert.ok(r.peak>=80&&r.peak<=95); }
+});
+
+test('the curated catalog replaces ambiguous fixtures and keeps all required obstacles', () => {
+  for(const id of ['mini-train','suitcase','cone','double-cone','vault','lane-pole','panda','elephant','turtle','horse','strap','rack-bar','bus-roof','club-door','tatami','new-class','convenience','supermarket']) assert.ok(def(id),id);
+  for(const id of ['warehouse','service','izakaya','marker','divider','old-class','play-base']) assert.equal(def(id),undefined,id);
+  for(const id of ['mini-train','suitcase','cone','vault','lane-pole']) assert.equal(def(id).rule,'straddle');
+  assert.equal(def('double-cone').rule,'jump'); assert.ok(def('double-cone').width>C.MAX_STRADDLE_WIDTH);
+  assert.equal(fresh().actionCost(def('ticket-gate')),0);
+});
+test('E reserves 0.4s, captures a high item after reach becomes valid, and is consumed once', () => {
+  const g=fresh(); const e=item(g,323,7); g.jump(); assert.equal(g.grab(),false); assert.equal(g.grabReservation.remaining,.4);
+  g.update(.4); assert.equal(e.collected,true); assert.equal(g.items,1); assert.equal(g.grabReservation.remaining,0);
+  item(g,323,0); g.update(.08); assert.equal(g.items,1);
+  const expired=fresh(); item(expired,140,30); expired.grab(); expired.update(.41); assert.equal(expired.grabReservation.remaining,0); assert.equal(expired.items,0);
+});
+test('a reservation never makes high items reachable on the ground or without E', () => {
+  const g=fresh(); item(g,323,2); g.grab(); g.update(.4); assert.equal(g.items,0);
+  const noE=fresh(); item(noE,305,7); noE.jump(); noE.update(.7); assert.equal(noE.items,0);
+});
+test('wrong straddle/jump actions select the exact requested messages', () => {
+  for(const id of ['double-cone','panda','elephant','turtle','horse']) {const g=fresh();g.events=[g.makeObstacle(def(id),def(id).min,1)];g.update(.2,false,true);assert.equal(g.reason,'そこまでの柔軟性はありません',id);}
+  for(const id of ['mini-train','suitcase','cone','vault','lane-pole']) {const g=fresh();g.events=[g.makeObstacle(def(id),def(id).min,1)];g.jump();g.update(.2);assert.equal(g.reason,'そこまでの跳躍力はありません',id);}
+  const s=fresh();s.crouchStrain=99;s.update(.1,false,true);assert.match(s.reason,/またぎ/);
+});
+test('endurance sections cause genuine fatigue and provide time to recover without unavoidable failure', () => {
+  for(const fps of [30,60,120]) { const r=simulate(77,1000,fps,{crouchLead:.23,crouchTail:.1});assert.ok(r.peak>=80&&r.peak<=95);assert.ok(r.highLoadFrames>0);assert.ok(r.recoveries>0);assert.ok(r.maxQueuedEvents<=5); }
 });
