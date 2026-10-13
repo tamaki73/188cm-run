@@ -66,16 +66,16 @@
     $('sound-toggle').checked = sound.enabled;
     $('sound-volume').value = String(Math.round(sound.volume * 100));
     $('sound-volume-value').textContent = Math.round(sound.volume * 100) + '％';
-    $('sound-status').textContent = sound.error;
+    $('sound-status').textContent = sound.error || (sound.enabled && sound.volume === 0 ? '音量が0％です。音量を上げると効果音が聞こえます。' : '');
   }
   $('sound-button').addEventListener('click', () => {
-    sound.setEnabled(!sound.enabled); sound.unlock(); sound.play('ui'); syncSoundSettings(); focusGame();
+    sound.setEnabled(!sound.enabled); sound.unlock(); sound.play('ui', { confirmation: sound.enabled }); syncSoundSettings(); focusGame();
   });
-  $('settings-button').addEventListener('click', () => { pause(); syncSoundSettings(); $('settings-dialog').showModal(); });
+  document.querySelectorAll('.settings-open').forEach(button => button.addEventListener('click', () => { pause(); syncSoundSettings(); $('settings-dialog').showModal(); }));
   $('settings-close').addEventListener('click', () => $('settings-dialog').close());
   $('settings-dialog').addEventListener('close', focusGame);
   $('sound-toggle').addEventListener('change', () => {
-    sound.setEnabled($('sound-toggle').checked); sound.unlock(); sound.play('ui'); syncSoundSettings();
+    sound.setEnabled($('sound-toggle').checked); sound.unlock(); sound.play('ui', { confirmation: sound.enabled }); syncSoundSettings();
   });
   $('sound-volume').addEventListener('input', () => { sound.setVolume(Number($('sound-volume').value) / 100); syncSoundSettings(); });
   $('sound-volume').addEventListener('change', () => { sound.unlock(); sound.play('ui'); });
@@ -84,8 +84,9 @@
     if (e.isTrusted && !e.repeat) sound.unlock();
   }, true);
   document.addEventListener('click', e => {
-    if (e.target.closest('#start-button,#restart-button,#settings-button,.ranking-open')) sound.play('ui');
+    if (e.target.closest('#start-button,#restart-button,.settings-open,.ranking-open')) sound.play('ui');
   }, true);
+  sound.onStateChange = syncSoundSettings;
   syncSoundSettings();
   $('sound-button').addEventListener('pointerdown', e => e.preventDefault());
   $('effects-button').addEventListener('pointerdown', e => e.preventDefault());
@@ -238,7 +239,9 @@
       $('tutorial-actions').hidden = model.mode !== 'tutorial';
       $('play-hint').hidden = model.mode === 'tutorial';
       game.classList.toggle('tutorial-mode', model.mode === 'tutorial');
+      document.querySelector('.shell').classList.toggle('tutorial-layout', model.mode === 'tutorial');
       game.dataset.mode = model.mode;
+      $('play-layout').dataset.mode = model.mode;
       $('pause-button').hidden = !active;
       $('best-score').textContent = best.toLocaleString('ja-JP');
       $('mode-label').textContent = model.mode === 'tutorial' ? '練習中' : model.mode === 'playing' ? '街を、走り抜けろ。' : '街を走る、あなたの物語。';
