@@ -1,0 +1,2285 @@
+<!doctype html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="theme-color" content="#09090C">
+  <meta name="description" content="身長188cmの視点で、街の入口を走り抜ける。オリジナルのCanvasランゲーム。">
+  <title>188cm RUN | 頭上に、気をつけて。</title>
+  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' rx='14' fill='%2309090C'/%3E%3Ctext x='32' y='43' text-anchor='middle' font-family='sans-serif' font-weight='900' font-size='32' fill='%23E58BA2'%3E188%3C/text%3E%3C/svg%3E">
+  <style>
+:root {
+  color-scheme: dark;
+  --bg: #09090c;
+  --panel: #181419;
+  --accent: #800020;
+  --accent-light: #b12a4a;
+  --highlight: #e58ba2;
+  --lime: var(--highlight);
+  --ink: #f7f3f5;
+  --muted: #bcaab1;
+  --edge: #ffffff26;
+  --radius: 16px;
+  --glass-blur: 12px;
+}
+* { box-sizing: border-box; }
+body { margin: 0; background: radial-gradient(ellipse at 85% 0%,#351320 0%,#141016 35%,var(--bg) 75%); color: var(--ink); font: 14px "Hiragino Kaku Gothic ProN","Yu Gothic",Meiryo,sans-serif; }
+button,a,input { -webkit-tap-highlight-color: transparent; }
+button { font: inherit; cursor: pointer; }
+button:disabled { cursor: default; opacity: .4; }
+button:focus-visible,a:focus-visible,input:focus-visible { outline: 2px solid #eab2c2; outline-offset: 3px; }
+[hidden] { display: none !important; }
+.shell { width: 100%; max-width: min(1440px,calc((100svh - 230px) * 1.411765)); margin: auto; padding: 12px 10px 10px; }
+.masthead { display: flex; align-items: center; justify-content: space-between; margin-bottom: 10px; }
+.wordmark { text-decoration: none; color: var(--ink); font-size: 25px; font-weight: 900; font-style: italic; letter-spacing: -1px; }
+.wordmark span { font-size: 14px; }
+.wordmark .logo-dot { font-size: 26px; color: var(--highlight); }
+.edition { text-align: right; font-size: 11px; letter-spacing: 1px; }
+.edition span { display: block; color: var(--muted); font-size: 9px; margin-top: 3px; }
+.game { position: relative; border: 1px solid #b69aa43b; border-radius: var(--radius); overflow: hidden; background: #14121a; box-shadow: 0 16px 55px #0006; isolation: isolate; outline: none; }
+.game:focus-visible { border-color: #b77a8e; }
+canvas { display: block; width: 100%; height: auto; aspect-ratio: 960/680; }
+.hud { position: absolute; inset: 0 0 auto; display: flex; align-items: start; gap: 25px; padding: 15px 20px 13px; background: linear-gradient(#171016ed,#171016ba 72%,transparent); border-bottom: 1px solid #ffffff0d; pointer-events: none; z-index: 2; }
+.stat span,.strain span { display: block; font-size: 10px; color: #deccd3; letter-spacing: .8px; margin-bottom: 4px; }
+.stat strong { font: 600 22px ui-monospace,SFMono-Regular,Consolas,monospace; letter-spacing: 1px; }
+.score-stat strong { color: #f0bdcd; font-size: 27px; }
+.stat b { font-weight: inherit; }
+.stat small { font-size: 10px; color: #d8c6d0; }
+.strain { margin-left: auto; min-width: 160px; }
+.strain>div:first-child { display: flex; align-items: center; justify-content: space-between; margin-bottom: 7px; }
+.strain strong { font-size: 12px; }
+.track { height: 7px; border-radius: 8px; background: #ffffff20; overflow: hidden; }
+.track i { display: block; height: 100%; background: #86df9e; width: 0%; transition: width .08s linear,background .2s; }
+.scene-meta { position: absolute; bottom: 15px; left: 20px; right: 20px; display: flex; justify-content: space-between; font-size: 10px; letter-spacing: .7px; color: #f1e6ea; text-shadow: 0 2px 4px #000; pointer-events: none; }
+.scene-meta b { font: 16px monospace; }
+.pause-button { position: absolute; top: 85px; right: 18px; z-index: 3; width: 34px; height: 34px; border: 1px solid var(--edge); background: #221821d9; color: var(--ink); border-radius: 50%; font-weight: 900; }
+.overlay { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; z-index: 5; padding: 18px; background: linear-gradient(90deg,#0c080ce8,#170a1277 70%,#0a080a22); }
+.title-card,.result-card,.pause-card,.tutorial-panel,#ranking-dialog,#settings-dialog {
+  background: linear-gradient(135deg,#2d1e29f5,#17141bf5);
+  border: 1px solid var(--edge);
+  border-top-color: #ffffff35;
+  border-radius: var(--radius);
+  box-shadow: inset 0 1px 0 #ffffff0b,0 14px 45px #0005;
+}
+@supports ((backdrop-filter: blur(1px)) or (-webkit-backdrop-filter: blur(1px))) {
+  .title-card,.result-card,.pause-card,.tutorial-panel,#ranking-dialog,#settings-dialog {
+    background: linear-gradient(135deg,#31202ada,#151218e8);
+    -webkit-backdrop-filter: blur(var(--glass-blur));
+    backdrop-filter: blur(var(--glass-blur));
+  }
+}
+.title-card { position: relative; isolation: isolate; margin: 0; width: clamp(260px,24%,300px); max-height: 100%; overflow: auto; padding: 16px 20px; background: linear-gradient(125deg,#f8dee91f,#49243368 38%,#14141cbd);
+  border-color: #ead2e740; border-top-color: #fff2fb80; border-left-color: #f3d6eb66; border-radius: 22px;
+  box-shadow: inset 1px 1px 1px #fff2fc35,inset -1px -1px 0 #e5b5ce19,0 16px 40px #08030b5c; }
+#title-panel { justify-content: flex-start; padding: 20px; background: linear-gradient(90deg,#0c080c70,transparent 48%); }
+.title-card h1 { font-size: 70px; line-height: .9; margin: 8px 0; }
+.title-card h1>span:first-child { font-size: 24px; }
+.title-card>.primary { padding: 11px 13px; }
+.title-actions { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+.title-actions .text-button { font-size: 12px; padding: 8px 0; min-width: 44px; min-height: 40px; }
+.title-card .best { margin-top: 6px; }
+.play-layout { display: grid; grid-template-columns: minmax(0,1fr); }
+.eyebrow { font-size: 11px; letter-spacing: 2px; color: #e9a7bc; }
+h1 { font: 900 99px/.89 Arial,sans-serif; letter-spacing: -6px; margin: 21px 0; }
+h1>span:first-child { font-size: 30px; letter-spacing: -2px; }
+h1 .lime { letter-spacing: -3px; }
+.lime { color: var(--highlight); }
+.title-card p { font-size: 12px; line-height: 1.65; color: #e6d6df; margin: 8px 0 12px; }
+.primary { border: 1px solid #d76a892e; border-radius: 8px; background: linear-gradient(135deg,#ad2e50,#800020); color: #fff4f7; display: flex; align-items: center; justify-content: space-between; width: 100%; padding: 13px 17px; font-weight: 700; box-shadow: inset 0 1px 0 #ffcddd18,0 5px 17px #31000d40; transition: background .16s,box-shadow .16s; }
+.primary:hover:not(:disabled) { background: linear-gradient(135deg,#bc4563,#921b3a); box-shadow: inset 0 1px 0 #ffe1ee35,0 5px 17px #31000d60; }
+.primary span { font-size: 20px; }
+.text-button { display: inline-block; border: 0; background: transparent; color: #d3bfc8; font-size: 11px; padding: 10px 0; }
+.text-button:hover:not(:disabled) { color: #fff1f6; }
+.title-card>.text-button { width: 100%; margin-top: 2px; font-size: 12px; padding: 8px 0; }
+.best { margin-top: 9px; font-size: 10px; color: var(--muted); }
+.best strong { color: #ede0e6; margin-left: 10px; font: 14px monospace; }
+.distance-best { font-size: 11px; color: #e3cad6; line-height: 1.9; }
+.instruction-area { height: 142px; margin-bottom: 10px; }
+.tutorial-panel,.play-hint { height: 100%; padding: 12px 18px; overflow-wrap: anywhere; }
+.tutorial-panel { border-left: 3px solid #b7617b; }
+.play-hint { border: 1px solid var(--edge); border-radius: var(--radius); background: #21151ec9; display: flex; flex-direction: column; justify-content: center; }
+.play-hint p { font-size: 13px; line-height: 1.8; margin: 10px 0; }
+.play-hint small { color: var(--muted); }
+.tutorial-actions { margin-top: 8px; padding: 10px 14px; border: 1px solid var(--edge); border-radius: var(--radius); background: #241923e8; }
+.lesson-heading { display: flex; align-items: center; justify-content: space-between; }
+.lesson-heading .text-button { padding: 0; }
+.lesson-heading b { color: white; margin-left: 15px; font-family: monospace; }
+.tutorial-panel h2 { font-size: 18px; margin: 10px 0 8px; }
+.tutorial-panel p { font-size: 13px; color: #e0d2db; line-height: 1.8; margin: 0 0 12px; }
+.lesson-bottom { display: flex; gap: 12px; align-items: center; justify-content: space-between; min-height: 36px; }
+.lesson-bottom>span { font-size: 11px; color: #f0bbcf; max-width: 70%; line-height: 1.7; }
+.compact { width: auto; padding: 9px 14px; white-space: nowrap; font-size: 12px; }
+.skip-row { display: flex; align-items: center; justify-content: space-between; gap: 10px; border-top: 1px solid #ffffff20; margin-top: 12px; padding-top: 10px; font-size: 10px; color: #cebbc7; }
+.skip-row label { display: flex; align-items: center; gap: 5px; }
+.skip-row input { accent-color: #b94d6d; margin: 0; }
+.skip-row .text-button { font-size: 10px; padding: 3px 0; }
+.result-card,.pause-card { width: min(540px,95%); max-height: 96%; overflow: auto; text-align: center; padding: 25px 30px; }
+.result-card h2 { font: 700 32px Arial,sans-serif; letter-spacing: -1px; margin: 13px 0; }
+.result-card #over-reason { color: #f0c1cc; font-size: 24px; font-weight: 800; line-height: 1.5; margin: 16px 0; }
+.result-score { padding: 8px 0; }
+.result-score span { display: block; font-size: 11px; color: var(--muted); }
+.result-score strong { font: 44px monospace; color: #edb2c7; }
+.result-details { display: flex; justify-content: center; gap: 25px; margin-bottom: 12px; color: var(--muted); font-size: 11px; }
+.result-details b { display: block; color: white; font-size: 16px; margin-top: 6px; }
+.result-card .text-button { margin-top: 8px; }
+.primary kbd { background: #ffffff14; color: #fff4f7; border-color: #ffffff2e; }
+.understanding { text-align: left; margin: 10px 0 12px; font-size: 12px; color: #e8d6e3; }
+.understanding .track { margin-top: 7px; }
+.understanding i { background: #c9a6d7; }
+.result-card #save-status { font-size: 10px; color: #d6bfce; line-height: 1.8; margin: 5px 0; min-height: 16px; }
+.result-card>.ranking-open { margin: 0 0 8px; padding: 6px; }
+.pause-overlay { z-index: 8; background: #0e090fc2; }
+.pause-card p { font-size: 12px; color: var(--muted); line-height: 1.8; margin-bottom: 22px; }
+.countdown { position: absolute; inset: 0; display: grid; place-content: center; font-size: 95px; font-weight: 900; color: #efb2c7; background: #0c08116b; z-index: 8; text-shadow: 0 5px 20px #000; }
+.focus-tip { position: absolute; bottom: 55px; left: 50%; transform: translateX(-50%); background: #271923ed; border: 1px solid var(--edge); padding: 10px 18px; border-radius: 25px; font-size: 12px; z-index: 7; white-space: nowrap; }
+.next-event { position: absolute; z-index: 3; top: 75px; left: 50%; transform: translateX(-50%); max-width: 74%; padding: 6px 12px; border-radius: 6px; background: #20151de6; border: 1px solid #ffffff20; font-size: 11px; color: #f3e5eb; pointer-events: none; text-align: center; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.strain-warning { position: absolute; right: 20px; top: 60px; z-index: 3; padding: 5px 9px; border-radius: 4px; background: #33261de8; color: #ffd19b; font-size: 10px; pointer-events: none; }
+.game[data-strain-level=critical] { border-color: #b27676; }
+.game[data-strain-level=critical] .strain-warning { color: #ffc6cb; background: #431a2be8; animation: gentle-warning 2.8s ease-in-out infinite; }
+@keyframes gentle-warning { 0%,100% { opacity: 1; } 50% { opacity: .88; } }
+.overlay:not([hidden]),#ranking-dialog[open],#settings-dialog[open] { animation: panel-in .16s ease-out; }
+@keyframes panel-in { from { opacity: .4; } to { opacity: 1; } }
+.controls { display: flex; align-items: center; gap: 16px; flex-wrap: wrap; padding: 12px 2px 3px; color: #c4b0ba; font-size: 10px; }
+.controls>div { white-space: nowrap; }
+.controls #sound-button { margin-left: auto; }
+.controls .text-button { padding: 6px 10px; border: 1px solid #ffffff20; border-radius: 6px; background: #ffffff06; }
+kbd { font: 10px ui-monospace,monospace; background: #29202b; border: 1px solid #6a5369; color: #f0e4ed; padding: 3px 6px; border-radius: 4px; }
+.footnote { display: flex; justify-content: space-between; font-size: 10px; line-height: 1.8; color: #b39aa7; margin: 6px 0 0; }
+.footnote span { margin-left: 15px; font-size: 9px; }
+.touch-controls { display: none; gap: 7px; margin-top: 8px; }
+.touch-controls button { flex: 1; border: 1px solid #a1798b57; background: linear-gradient(135deg,#35232e,#211b26); color: #f4e1ea; border-radius: 8px; padding: 14px 5px; touch-action: none; user-select: none; font-size: 11px; }
+#ranking-dialog { width: min(620px,calc(100% - 20px)); max-height: 90dvh; overflow: auto; color: var(--ink); padding: 23px; }
+#ranking-dialog::backdrop,#settings-dialog::backdrop { background: #0c080dc2; }
+.ranking-heading { display: flex; gap: 10px; align-items: center; justify-content: space-between; }
+.ranking-heading h2 { font-size: 19px; margin: 0; }
+.ranking-note { display: block; font-size: 11px; line-height: 1.9; color: #c8b4bf; }
+.ranking-scroll { overflow-x: auto; }
+#ranking-dialog table { width: 100%; border-collapse: collapse; font-size: 12px; table-layout: fixed; }
+#ranking-dialog th,#ranking-dialog td { padding: 12px 5px; text-align: left; border-bottom: 1px solid #ffffff20; overflow-wrap: anywhere; }
+#ranking-dialog th { color: #dbc3cf; font-size: 11px; }
+#ranking-dialog th:first-child { width: 12%; }
+#ranking-dialog th:nth-child(2) { width: 40%; }
+#ranking-dialog th:nth-child(3) { width: 28%; }
+#ranking-dialog th:last-child { width: 20%; }
+.rank-1 td:first-child { color: #dec7a3; }
+.rank-2 td:first-child { color: #d4c8d9; }
+.rank-3 td:first-child { color: #c7a18f; }
+.ranking-self { background: #8b284231; box-shadow: inset 3px 0 0 #d487a1; }
+.self-badge { display: inline-block; margin-left: 7px; padding: 2px 5px; border-radius: 4px; background: #6d273f; color: #ffe5ee; font-size: 9px; white-space: nowrap; }
+#ranking-status { font-size: 12px; line-height: 1.8; color: #e6c1d0; min-height: 24px; }
+.ranking-actions { display: flex; gap: 15px; flex-wrap: wrap; margin: 14px 0; }
+#nickname-form { padding: 15px 0; border-top: 1px solid #ffffff26; }
+#nickname-form label { display: block; font-size: 12px; margin-bottom: 8px; }
+.nickname-row { display: flex; gap: 10px; }
+.nickname-row input { width: 100%; min-width: 0; background: #ffffff09; border: 1px solid #b998ad66; border-radius: 7px; color: white; padding: 10px; font: inherit; }
+.nickname-row input::placeholder { color: #b5a0ad; }
+#nickname-privacy { display: block; font-size: 12px; line-height: 1.8; color: #f3c4d3; margin: 10px 0 7px; }
+#nickname-help { display: block; font-size: 11px; line-height: 1.8; color: #cab7c3; }
+#nickname-error { font-size: 11px; color: #edb9c9; line-height: 1.8; margin-bottom: 0; }
+body.reduced-effects .game .strain-warning,body.reduced-effects .overlay,body.reduced-effects #ranking-dialog,body.reduced-effects #settings-dialog { animation: none; }
+body.reduced-effects .title-card,body.reduced-effects .result-card,body.reduced-effects .pause-card,body.reduced-effects .tutorial-panel,body.reduced-effects #ranking-dialog,body.reduced-effects #settings-dialog { backdrop-filter: none; -webkit-backdrop-filter: none; background: #201822f7; }
+@media (prefers-reduced-motion: reduce) { *,*::before,*::after { animation: none !important; transition: none !important; } }
+@media (max-width: 700px) {
+  .shell { max-width: none; padding: 8px 5px; }
+  .masthead { margin-bottom: 7px; }
+  .wordmark { font-size: 22px; }
+  .edition { font-size: 9px; }
+  .edition span { font-size: 8px; }
+  .hud { gap: 12px; padding: 9px 11px 12px; }
+  .stat strong { font-size: 14px; }
+  .score-stat strong { font-size: 17px; }
+  .stat span,.strain span { font-size: 8px; letter-spacing: 0; }
+  .stat small { font-size: 8px; }
+  .strain { min-width: 85px; }
+  .strain strong { font-size: 10px; }
+  .next-event { top: 54px; font-size: 10px; padding: 4px 8px; max-width: 78%; }
+  .pause-button { top: 78px; right: 10px; width: 28px; height: 28px; }
+  .strain-warning { top: 78px; left: 11px; right: auto; font-size: 9px; max-width: 77%; }
+  .scene-meta { left: 11px; right: 11px; bottom: 9px; font-size: 8px; letter-spacing: 0; }
+  .scene-meta b { font-size: 13px; }
+  .touch-controls { display: flex; position: sticky; bottom: 0; z-index: 10; padding: 5px 0; background: #0d0a10f2; }
+  .controls { gap: 10px; padding-top: 8px; }
+  .controls #sound-button { margin-left: 0; }
+  .controls>div { font-size: 9px; }
+  .footnote { display: block; }
+  .footnote span { display: block; margin: 3px 0 0; }
+  .overlay:not(.pause-overlay) { position: relative; inset: auto; width: 100%; max-width: none; padding: 13px; border-radius: 0; }
+  .title-card { width: min(280px,100%); max-width: none; margin: 0 auto; padding: 14px 18px; }
+  #title-panel { padding: 10px; }
+  .title-card h1 { font-size: 54px; line-height: .92; margin: 6px 0; }
+  .title-card h1 br { display: none; }
+  .title-card h1>span:first-child { margin-right: 8px; }
+  .title-card p { font-size: 12px; margin: 8px 0; }
+  .title-card>.text-button { margin-top: 0; }
+  .result-card { width: 100%; max-height: none; padding: 19px; }
+  .result-card h2 { font-size: 28px; }
+  .result-card #over-reason { font-size: 19px; }
+  .result-score strong { font-size: 36px; }
+  .instruction-area { height: 178px; margin-bottom: 7px; }
+  .tutorial-panel,.play-hint { padding: 10px 12px; }
+  .tutorial-panel h2 { font-size: 16px; }
+  .tutorial-panel p { font-size: 12px; line-height: 1.7; }
+  .lesson-bottom>span { font-size: 11px; }
+  .skip-row { flex-wrap: wrap; font-size: 11px; }
+  .skip-row .text-button { font-size: 11px; }
+  .game[data-mode=title] .scene-meta,.game[data-mode=gameover] .scene-meta { display: none; }
+  .title-card,.result-card,.tutorial-panel { backdrop-filter: none; -webkit-backdrop-filter: none; background: linear-gradient(135deg,#30212be8,#17141bf5); }
+  #ranking-dialog { padding: 16px; }
+  .ranking-heading h2 { font-size: 16px; }
+  #ranking-dialog th,#ranking-dialog td { padding: 10px 3px; font-size: 11px; }
+  .nickname-row .primary { font-size: 11px; padding: 9px; flex-shrink: 0; }
+  #nickname-privacy { font-size: 12px; }
+}
+@media (max-width: 360px) { .hud { gap: 8px; padding-left: 8px; padding-right: 8px; } .strain { min-width: 75px; } .lesson-bottom { flex-wrap: wrap; } }
+
+#settings-dialog { width: min(420px,calc(100% - 20px)); max-height: 90dvh; color: var(--ink); padding: 22px; }
+.sound-toggle { display: flex; align-items: center; gap: 10px; margin: 25px 0; }
+.sound-toggle span { margin-right: auto; }
+.sound-toggle input { accent-color: var(--accent-light); width: 20px; height: 20px; }
+.volume-label { display: flex; justify-content: space-between; margin-bottom: 12px; }
+#sound-volume { width: 100%; accent-color: var(--accent-light); min-height: 30px; }
+
+@media (max-height: 600px) and (min-width: 701px) { .shell { max-width: min(960px,100%); } }
+@media (pointer: coarse) { .touch-controls { display: flex; } }
+
+@media (min-width: 1280px) {
+  .shell.tutorial-layout { max-width: min(1680px,calc((100svh - 230px) * 1.411765 + 234px)); }
+  .tutorial-layout .play-layout { grid-template-columns: 220px minmax(0,1fr); column-gap: 14px; align-items: start; }
+  .tutorial-layout .instruction-area { grid-column: 1; grid-row: 1; height: auto; margin-bottom: 0; }
+  .tutorial-layout .tutorial-panel { height: auto; padding: 12px 14px; }
+  .tutorial-layout .lesson-heading { align-items: start; gap: 10px; flex-wrap: wrap; }
+  .tutorial-layout .lesson-heading b { margin-left: 7px; }
+  .tutorial-layout .tutorial-panel h2 { font-size: 16px; line-height: 1.6; }
+  .tutorial-layout #game { grid-column: 2; grid-row: 1; }
+  .tutorial-layout .touch-controls,.tutorial-layout .tutorial-actions { grid-column: 2; }
+}
+
+.play-layout[data-mode=title] .touch-controls,.play-layout[data-mode=gameover] .touch-controls { display: none; }
+
+/* Lightweight refraction/highlight: one bounded backdrop layer, no animated filter. */
+.title-card::before { content: ""; position: absolute; pointer-events: none; z-index: -1; inset: 0; border-radius: inherit; background: radial-gradient(ellipse at 10% 0%,#f4dcea1f,transparent 56%),linear-gradient(135deg,#ffffff0a,transparent 35%); }
+.title-card .primary { border-top-color: #fbd4e75c; border-radius: 12px; background: linear-gradient(125deg,#b64664c9,#800020db); box-shadow: inset 0 1px 2px #fff2f629,0 5px 20px #30051344; }
+.title-card h1 { text-shadow: 0 2px 14px #0a041848; }
+#settings-dialog { overflow-y: auto; }
+#settings-dialog input[type=range] { width: 100%; accent-color: var(--accent-light); min-height: 30px; }
+#quality-select { width: 100%; min-height: 42px; padding: 8px 12px; border: 1px solid #d4b0c74d; border-radius: 9px; background: #251b27; color: var(--ink); font: inherit; }
+body[data-quality=low] .title-card,body[data-quality=low] .result-card,body[data-quality=low] .pause-card,body[data-quality=low] .tutorial-panel,body[data-quality=low] dialog { backdrop-filter: none; -webkit-backdrop-filter: none; background-color: #211923df; }
+@media (max-width:700px) { .title-card { width: min(280px,100%); } }
+
+.play-layout[data-mode=title] .instruction-area { height: 68px; }
+.play-layout[data-mode=title] .play-hint { padding: 8px 16px; }
+.play-layout[data-mode=title] .play-hint p { margin: 4px 0; font-size: 12px; }
+.play-layout[data-mode=title] .play-hint .eyebrow { display: none; }
+#settings-dialog .sound-toggle { margin: 18px 0 10px; }
+#settings-dialog .volume-label { margin-top: 15px; margin-bottom: 4px; font-size: 13px; }
+
+.play-layout[data-mode=title] .play-hint small { display: none; }
+
+</style>
+</head>
+<body>
+  <main class="shell">
+    <header class="masthead"><a class="wordmark" href="#" id="home-link">188<span>cm</span> RUN<span class="logo-dot">.</span></a><div class="edition">日常を、走り抜けろ。<span>身長188cmのランゲーム</span></div></header>
+    <div id="play-layout" class="play-layout">
+    <div class="instruction-area">
+      <section class="tutorial-panel" id="tutorial-panel" hidden aria-label="チュートリアル">
+        <div class="lesson-heading"><span class="eyebrow">チュートリアル <b id="lesson-step">1 / 9</b></span><button class="text-button" id="lesson-title-button">タイトルへ</button></div>
+        <h2 id="lesson-title"></h2><p id="lesson-text"></p>
+      </section>
+      <div id="play-hint" class="play-hint"><span class="eyebrow">操作のヒント</span><p>↓ / Shift：しゃがむ　S：またぐ　Space：ジャンプ　E：取得</p><small>スマートフォンでは画面下のボタンを使えます。</small></div>
+    </div>
+    <section id="game" class="game" tabindex="0" aria-label="188cm RUN ゲーム画面。クリックしてキーボードで操作。">
+      <canvas id="canvas" width="960" height="680" aria-label="奥から迫る入口とアイテム、走るプレイヤー"></canvas>
+      <div class="hud" id="hud">
+        <div class="stat score-stat"><span>スコア</span><strong id="score">000000</strong></div>
+        <div class="stat"><span>走行距離</span><strong><b id="distance">0</b><small> m</small></strong></div>
+        <div class="stat"><span>アイテム</span><strong><b id="items">0</b><small> 個</small></strong></div>
+        <div class="strain"><div><span>体への負荷</span><strong id="strain-value">0%</strong></div><div class="track" role="progressbar" aria-label="体への負荷" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0" id="strain-track"><i id="strain-bar"></i></div></div>
+      </div>
+      <div id="next-event" class="next-event" role="status" aria-live="polite" hidden></div>
+      <div id="strain-warning" class="strain-warning" role="status" aria-live="polite" hidden></div>
+      <div class="scene-meta"><span id="mode-label">街を走る、あなたの物語。</span><span>身長 <b>188</b> cm</span></div>
+      <button class="pause-button" id="pause-button" aria-label="一時停止" hidden>Ⅱ</button>
+      <section class="overlay" id="title-panel" hidden>
+        <div class="title-card"><span class="eyebrow">頭上に、気をつけて。</span><h1>188<span>cm</span><br>RUN<span class="lime">.</span></h1><p>いつもの入口。少し高い目線。<br>その一瞬の判断が、走りを変える。</p><button class="primary" id="start-button">走り出す <span>→</span></button><button class="text-button" id="tutorial-button">チュートリアルで練習する</button><div class="title-actions"><button class="text-button ranking-open">友達とのランキングを見る</button><button class="text-button settings-open">設定</button></div><div class="distance-best"></div><div class="best">スコア自己ベスト <strong id="best-score">0</strong></div></div>
+      </section>
+      <section class="overlay" id="over-panel" hidden>
+        <div class="result-card"><span class="eyebrow">おつかれさまでした</span><h2>GAME OVER<span class="lime">.</span></h2><p id="over-reason" role="alert"></p><div class="result-score"><span>最終スコア</span><strong id="final-score">0</strong></div><div class="result-details"><span>走行距離 <b id="final-distance">0 m</b></span><span>アイテム <b id="final-items">0 個</b></span></div><div class="understanding"><span id="final-understanding">高身長への理解度：0％</span><div class="track" role="progressbar" aria-label="高身長への理解度" aria-valuemin="0" aria-valuemax="100" id="understanding-track"><i id="understanding-bar"></i></div></div><p id="save-status" role="status"></p><button class="text-button ranking-open">友達とのランキングを見る</button><button id="restart-button" class="primary">もう一度走る <kbd>Enter</kbd></button><button id="back-button" class="text-button">タイトルへ戻る</button></div>
+      </section>
+      <section class="overlay pause-overlay" id="pause-panel" hidden><div class="pause-card"><span class="eyebrow">ひと休み</span><h2>一時停止中</h2><p>3秒後に再開します。<br>姿勢キーはカウント中も押せます。</p><button id="resume-button" class="primary">ゲームに戻る →</button></div></section>
+      <div class="countdown" id="countdown" hidden aria-live="polite">3</div>
+      <div class="focus-tip" id="focus-tip" hidden>画面をクリックして操作</div>
+    </section>
+    <nav class="touch-controls" aria-label="タッチ操作"><button id="touch-crouch">しゃがむ（長押し）</button><button id="touch-straddle">またぐ（長押し）</button><button id="touch-jump">ジャンプ</button><button id="touch-grab">取る</button></nav>
+    <section id="tutorial-actions" class="tutorial-actions" hidden aria-label="チュートリアルの進行"><div class="lesson-bottom"><span id="lesson-feedback" role="status"></span><button class="primary compact" id="next-button" disabled>次へ →</button></div>
+        <div class="skip-row"><label><input type="checkbox" id="skip-checkbox"> 次回からチュートリアルを表示しない</label><button id="skip-button" class="text-button" disabled>チュートリアルをスキップ</button></div>
+    </section>
+    </div>
+    <footer class="controls"><div><kbd>↓</kbd><span> / </span><kbd>Shift</kbd><span> 長押しでしゃがむ</span></div><div><kbd>S</kbd><span> 長押しでまたぐ</span></div><div><kbd>Space</kbd><span> ジャンプ</span></div><div><kbd>E</kbd><span> アイテム取得</span></div><div><kbd>Esc</kbd><span> 一時停止</span></div><button class="text-button" id="sound-button" aria-pressed="true">効果音：オン</button><button class="text-button settings-open" id="settings-button">設定</button><button class="text-button" id="effects-button" aria-pressed="false">演出：通常</button></footer>
+    <p class="footnote">アイテムは近づいてE。取り逃がすと終了します。<span>病名・負荷・身体能力はゲーム内の演出です。遊具や標識への現実の行動は勧めません。</span></p>
+
+  </main>
+  <dialog id="settings-dialog" aria-labelledby="settings-title">
+    <div class="ranking-heading"><h2 id="settings-title">設定</h2><button id="settings-close" class="text-button">閉じる ×</button></div>
+    <label class="volume-label" for="quality-select">グラフィック品質 <output id="quality-status">自動</output></label>
+    <select id="quality-select"><option value="auto">自動</option><option value="low">低</option><option value="medium">中</option><option value="high">高</option></select>
+    <label class="sound-toggle"><span>効果音</span><input id="sound-toggle" type="checkbox"> オン</label>
+    <label class="volume-label" for="sound-volume">効果音の音量 <output id="sound-volume-value" for="sound-volume">70％</output></label>
+    <input id="sound-volume" type="range" min="0" max="100" step="1" value="70">
+    <label class="sound-toggle"><span>BGM</span><input id="bgm-toggle" type="checkbox"> オン</label>
+    <label class="volume-label" for="bgm-volume">BGMの音量 <output id="bgm-volume-value" for="bgm-volume">35％</output></label>
+    <input id="bgm-volume" type="range" min="0" max="100" step="1" value="35">
+    <label class="volume-label" for="master-volume">マスター音量 <output id="master-volume-value" for="master-volume">85％</output></label>
+    <input id="master-volume" type="range" min="0" max="100" step="1" value="85">
+    <button id="audio-resume" class="text-button">音声を再開・確認音を鳴らす</button>
+    <p class="ranking-note">設定はこのブラウザに保存されます。ゲーム中に開くと一時停止します。</p>
+    <p id="sound-status" class="ranking-note" role="status"></p>
+  </dialog>
+  <dialog id="ranking-dialog" aria-labelledby="ranking-title">
+    <div class="ranking-heading"><h2 id="ranking-title">友達とのランキング</h2><button id="ranking-close" class="text-button" aria-label="ランキングを閉じる">閉じる ×</button></div>
+    <p class="ranking-note">走行距離で競う上位10人。理解度はゲーム内の演出です。</p>
+    <p class="distance-best"></p><p id="ranking-status" role="status" aria-live="polite"></p>
+    <div class="ranking-scroll"><table><thead><tr><th>順位</th><th>ニックネーム</th><th>距離</th><th>理解度</th></tr></thead><tbody id="ranking-rows"></tbody></table></div>
+    <div class="ranking-actions"><button id="ranking-refresh" class="primary compact">ランキングを更新</button><button id="ranking-send" class="text-button">記録を再送信</button></div>
+    <form id="nickname-form"><label for="nickname">ニックネーム（1〜16文字）</label><div class="nickname-row"><input id="nickname" type="text" maxlength="32" autocomplete="off" placeholder="例：RUNNER188" aria-describedby="nickname-privacy nickname-help nickname-error"><button class="primary compact" type="submit">名前を保存</button></div><p id="nickname-privacy">※本名は入力しないでください。ニックネームはランキングで公開されます。</p><small id="nickname-help">本名・メールアドレスは不要です。同じ名前でも別の参加者として登録されます。</small><p id="nickname-error" role="alert"></p></form>
+    <button id="nickname-skip" class="text-button" hidden>名前を付けずに遊ぶ（記録はこの端末のみ）</button>
+    <small class="ranking-note">名前と自己ベストを公開します。ブラウザのデータを消すと別の参加者になります。保存領域が使えない場合、名前や参加者IDは次回に引き継がれません。</small>
+  </dialog>
+  <script>
+/* Firebase console → project settings → registered Web app.
+   This is public Web-app configuration, never a service-account key.
+   Web configuration supplied by the project owner. Firebase-side setup is in ONLINE_SETUP.md. */
+window.RUN188_ONLINE_CONFIG = {
+  season: 'season-1',
+  firebase: {
+    apiKey: 'AIzaSyBOebZy76PcSkKVQVkL_XE56aRCBccV76s',
+    authDomain: 'cm-run.firebaseapp.com',
+    projectId: 'cm-run',
+    storageBucket: 'cm-run.firebasestorage.app',
+    messagingSenderId: '116328686539',
+    appId: '1:116328686539:web:091403a06f2d89b266cc4e'
+  },
+  appCheckSiteKey: ''
+};
+
+</script>
+  <script>
+/* Optional online ranking. Gameplay never depends on Firebase or this network. */
+(function (root) {
+  'use strict';
+  const SDK_VERSION = '13.0.0', MAX_DISTANCE = 10000000, SEND_INTERVAL = 60000;
+  function understanding(distance) { return Math.min(100, Math.floor(Math.max(0, Number(distance) || 0) / 10)); }
+  function nickname(value) {
+    const name = String(value).normalize('NFKC').trim().replace(/\s+/gu, ' ');
+    if ([...name].length < 1 || [...name].length > 16 || !/^[\p{L}\p{N}\p{M} _・ー.\-]+$/u.test(name) || /死ね|殺す|しね|fuck|shit/i.test(name)) {
+      throw new Error('名前は1〜16文字の文字・数字・空白・「_・ー.-」で入力してください。攻撃的な言葉は使えません。');
+    }
+    return name;
+  }
+  function configured(c) { return Boolean(c?.firebase?.apiKey && c.firebase.projectId && c.firebase.appId && /^[a-zA-Z0-9_-]{1,40}$/.test(c.season || '')); }
+  async function firebaseAdapter(config) {
+    const base = 'https://www.gstatic.com/firebasejs/' + SDK_VERSION + '/';
+    const [appSDK, authSDK, dbSDK] = await Promise.all([import(base + 'firebase-app.js'), import(base + 'firebase-auth.js'), import(base + 'firebase-firestore.js')]);
+    const app = appSDK.initializeApp(config.firebase, '188cm-ranking');
+    if (config.appCheckSiteKey) {
+      const sdk = await import(base + 'firebase-app-check.js');
+      sdk.initializeAppCheck(app, { provider: new sdk.ReCaptchaV3Provider(config.appCheckSiteKey), isTokenAutoRefreshEnabled: true });
+    }
+    const auth = authSDK.getAuth(app);
+    try { await authSDK.setPersistence(auth, authSDK.browserLocalPersistence); }
+    catch { await authSDK.setPersistence(auth, authSDK.inMemoryPersistence); }
+    await auth.authStateReady();
+    const user = auth.currentUser || (await authSDK.signInAnonymously(auth)).user;
+    const db = dbSDK.getFirestore(app), collection = dbSDK.collection(db, 'seasons', config.season, 'players');
+    const own = dbSDK.doc(collection, user.uid);
+    return {
+      async best() { const doc = await dbSDK.getDoc(own); return doc.exists() ? doc.data().distance : 0; },
+      async top() {
+        const snap = await dbSDK.getDocs(dbSDK.query(collection, dbSDK.orderBy('distance', 'desc'), dbSDK.limit(10)));
+        return snap.docs.map(d => ({ id: d.id, ...d.data(), isSelf: d.id === user.uid }));
+      },
+      async save(name, distance) {
+        return dbSDK.runTransaction(db, async transaction => {
+          const doc = await transaction.get(own), previous = doc.exists() ? doc.data() : null;
+          const best = Math.max(previous?.distance || 0, distance);
+          if (previous?.nickname === name && previous.distance >= distance) return { distance: best, changed: false };
+          // Rules independently require owner ID, integer distance, non-decreasing best and a 60s interval.
+          transaction.set(own, { nickname: name, distance: best, updatedAt: dbSDK.serverTimestamp() });
+          return { distance: best, changed: true };
+        });
+      }
+    };
+  }
+  function timeout(promise, ms = 12000) {
+    let timer;
+    return Promise.race([promise, new Promise((_, reject) => { timer = setTimeout(() => reject(new Error('通信がタイムアウトしました。')), ms); })]).finally(() => clearTimeout(timer));
+  }
+  class Ranking {
+    constructor(config, storage, factory = firebaseAdapter, now = Date.now) {
+      this.config = config || {}; this.storage = storage; this.factory = factory; this.now = now;
+      this.name = storage.get('nickname', ''); this.best = Math.max(0, Number(storage.get('distanceBest:' + this.season, '0')) || 0);
+      this.pending = this.best > 0 ? this.best : null; this.adapter = null; this.connecting = null; this.busy = false; this.lastSend = -Infinity;
+    }
+    get season() { return this.config.season || 'season-1'; }
+    get enabled() { return configured(this.config); }
+    setName(value) { this.name = nickname(value); this.storage.set('nickname', this.name); return this.name; }
+    async connect() {
+      if (!this.enabled) throw new Error('オンラインランキングは未設定です。この端末の記録で遊べます。');
+      if (this.adapter) return this.adapter;
+      if (!this.connecting) this.connecting = this.factory(this.config).then(a => this.adapter = a).catch(e => { this.connecting = null; throw e; });
+      return timeout(this.connecting);
+    }
+    record(distance, elapsed) {
+      const value = Math.floor(distance);
+      if (!Number.isFinite(value) || value < 0 || value > MAX_DISTANCE || !Number.isFinite(elapsed) || elapsed < 0 || distance > elapsed * 56 + 2) return false;
+      this.best = Math.max(this.best, value); this.storage.set('distanceBest:' + this.season, this.best);
+      this.pending = Math.max(this.pending || 0, value); return true;
+    }
+    async send() {
+      if (!this.name) throw new Error('ニックネームを設定するとオンラインに送信できます。');
+      if (this.pending === null) return { distance: this.best, changed: false };
+      if (this.busy) throw new Error('記録を送信中です。');
+      if (this.now() - this.lastSend < SEND_INTERVAL) throw new Error('次の送信まで少しお待ちください（送信間隔は60秒）。');
+      this.busy = true;
+      const sending = this.pending, sendingName = this.name;
+      // Attempts are throttled too, including errors/timeouts. Never silently retry a write.
+      this.lastSend = this.now();
+      try {
+        const adapter = await this.connect();
+        const result = await timeout(adapter.save(sendingName, sending));
+        this.best = Math.max(this.best, result.distance); this.storage.set('distanceBest:' + this.season, this.best);
+        if (this.pending === sending && this.name === sendingName) this.pending = null;
+        return result;
+      } finally { this.busy = false; }
+    }
+    async top() {
+      const adapter = await this.connect();
+      const [rows, best] = await timeout(Promise.all([adapter.top(), adapter.best()]));
+      this.best = Math.max(this.best, best); this.storage.set('distanceBest:' + this.season, this.best); return rows;
+    }
+  }
+  const api = { understanding, nickname, configured, Ranking, MAX_DISTANCE, SEND_INTERVAL, SDK_VERSION };
+  if (typeof module !== 'undefined' && module.exports) module.exports = api;
+  else root.Run188Ranking = api;
+})(typeof globalThis !== 'undefined' ? globalThis : this);
+
+</script>
+  <script>
+/* 188cm RUN — original game logic. Distances are metres, heights are centimetres. */
+(function (root) {
+  'use strict';
+  // Adjust these values to tune the game. Simulation uses seconds, never frame counts.
+  const CONFIG = Object.freeze({
+    PLAYER_HEIGHT: 188, PASSAGE_HEIGHT: 190, INSEAM: 90,
+    VERTICAL_JUMP: 75, STANDING_REACH: 252, MAX_REACH: 327,
+    INITIAL_SPEED: 16, MAX_SPEED: 56, TUTORIAL_SPEED: 9,
+    GRAVITY: 600, JUMP_POWER: 300, CROUCH_HEIGHT: 122,
+    MAX_STRADDLE_WIDTH: 80, STRADDLE_STRAIN_RATE: 20,
+    CROUCH_STRAIN_RATES: [15, 25, 35], CROUCH_STAGE_SECONDS: [2, 4],
+    CROUCH_RESET_SECONDS: 1, STRAIN_RECOVERY_RATE: 8,
+    JUMP_STRAIN: 12, ANKLE_RECOVERY_RATE: 2,
+    ITEM_REACH_TIME: 0.42, GRAB_BUFFER_SECONDS: 0.4, REACH_TOLERANCE: 2,
+    MIN_REACTION_TIME: 3.4, ACTION_BUFFER: 0.3, TEMPO_FACTOR: 0.88, TRAIN_SECONDS: 0.75, PLANNER_STRAIN_LIMIT: 55, ENDURANCE_SECONDS: 3.9, ENDURANCE_MARGIN: 0.3, RECOVERY_TARGET: 20,
+    AREA_LENGTH: 180, SPAWN_DISTANCE: 100, FIXED_STEP: 1 / 120
+  });
+  const SPEED_POINTS = [[0, 1], [100, 1.4], [200, 1.9], [300, 2.4], [500, 3.1], [800, 3.5]];
+  function speedAt(distance) {
+    for (let i = 1; i < SPEED_POINTS.length; i++) {
+      const [end, value] = SPEED_POINTS[i], [start, previous] = SPEED_POINTS[i - 1];
+      if (distance <= end) {
+        const t = Math.max(0, (distance - start) / (end - start));
+        return CONFIG.INITIAL_SPEED * (previous + (value - previous) * t * t * (3 - 2 * t));
+      }
+    }
+    return CONFIG.MAX_SPEED;
+  }
+  const AREAS = [
+    { id: 'street', name: '通学路', sky: '#79979c', floor: '#263b42', accent: '#a5c59b' },
+    { id: 'school', name: '学校・大学', sky: '#8da9ba', floor: '#6d756d', accent: '#c8d9a4' },
+    { id: 'station', name: '電車・駅', sky: '#7e99a5', floor: '#344751', accent: '#a1c7cd' },
+    { id: 'bus', name: '路線バス', sky: '#8c9d9e', floor: '#3c4e61', accent: '#c9b78c' },
+    { id: 'store', name: 'コンビニ・スーパー', sky: '#97b4b0', floor: '#566967', accent: '#bcdaaa' },
+    { id: 'park', name: '公園', sky: '#8db7af', floor: '#556c49', accent: '#c2d194' },
+    { id: 'home', name: '自宅', sky: '#b5a6a0', floor: '#685e48', accent: '#d6bc91' }
+  ];
+  const areaAt = distance => AREAS[Math.floor(Math.max(0, distance) / CONFIG.AREA_LENGTH) % AREAS.length];
+  const OBSTACLES = [];
+  const ITEMS = [
+    { id: 'drink', prop: 'vending', object: 'drink', high: false },
+    { id: 'low-hat', prop: 'locker', object: 'hat', high: false },
+    { id: 'trinket', prop: 'desk', object: 'trinket', high: false },
+    { id: 'book', prop: 'shelf', object: 'book', high: false },
+    { id: 'wallet', prop: 'counter', object: 'wallet', high: false },
+    { id: 'low-ball', prop: 'shop-shelf', object: 'ball', high: false },
+    { id: 'towel', prop: 'basket', object: 'towel', high: true },
+    { id: 'high-hat', prop: 'shelf', object: 'hat', high: true },
+    { id: 'high-ball', prop: 'locker', object: 'ball', high: true },
+    { id: 'storage', prop: 'storage', object: 'trinket', high: true },
+    { id: 'sign', prop: 'sign', object: 'trinket', high: true }
+  ];
+  // Curated, visually distinct obstacles for the student-life route.
+  const overhead = (id, name, style, min, max, areas) => ({ id, name, style, min, max, areas, rule: 'overhead', low: min < CONFIG.PASSAGE_HEIGHT });
+  OBSTACLES.push(
+    overhead('strap', '電車の吊り革', 'strap', 160, 165, ['station']),
+    overhead('rack-bar', '電車の網棚', 'rack', 180, 185, ['station']),
+    overhead('bus-roof', 'バスの後方天井', 'bus', 180, 185, ['bus']),
+    overhead('club-door', '古い部室の引き戸', 'club', 175, 180, ['school']),
+    overhead('tatami', '和室の鴨居', 'tatami', 175, 180, ['home']),
+    overhead('old-entry', '古い建物の低い出入口', 'club', 175, 180, ['street', 'store']),
+    overhead('new-class', '新しい教室のドア', 'classroom', 200, 200, ['school']),
+    overhead('convenience', 'コンビニの自動ドア', 'auto-door', 200, 210, ['store']),
+    overhead('supermarket', 'スーパーの自動ドア', 'supermarket', 200, 210, ['store']),
+    { id: 'ticket-gate', name: '駅の自動改札', style: 'gate', rule: 'open', min: Infinity, max: Infinity, areas: ['station'] },
+    { id: 'lane-pole', name: '車線分離ポール', style: 'pole', rule: 'straddle', min: 60, max: 75, width: 20, areas: ['street'] },
+    { id: 'cone', name: 'カラーコーン', style: 'cone', rule: 'straddle', min: 50, max: 50, width: 38, areas: ['street', 'school'] },
+    ...[['panda', 'パンダ', 45], ['elephant', 'ゾウ', 50], ['turtle', 'カメ', 35], ['horse', 'ウマ', 55]].map(([id, animal, height]) =>
+      ({ id, name: animal + 'のスプリング遊具', style: id, rule: 'jump', min: height, max: height, width: 130, areas: ['park'] })),
+    { id: 'mini-train', name: 'ミニ電車', style: 'mini-train', rule: 'straddle', min: 70, max: 70, width: 66, duration: CONFIG.TRAIN_SECONDS, tutorialDuration: 0.16, areas: ['park', 'street'] },
+    { id: 'suitcase', name: 'スーツケース', style: 'suitcase', rule: 'straddle', min: 65, max: 65, width: 40, areas: ['station', 'bus', 'street'] },
+    { id: 'double-cone', name: 'カラーコーン2個', style: 'double-cone', rule: 'jump', min: 50, max: 50, width: 130, areas: ['street', 'school'] },
+    { id: 'vault', name: '跳び箱5段', style: 'vault', rule: 'straddle', min: 75, max: 75, width: 64, areas: ['school'] },
+  );
+  const objectNames = { drink: '飲み物', hat: '帽子', trinket: '小物', book: '本', wallet: '財布', ball: 'ボール', towel: 'タオル' };
+  for (const def of ITEMS) {
+    def.name = objectNames[def.object]; def.min = def.high ? (def.prop === 'basket' ? 305 : 300) : 201;
+    def.max = def.high && def.prop === 'sign' ? 325 : def.min;
+    def.areas = def.prop === 'sign' ? ['street'] : ['locker', 'desk', 'basket', 'storage'].includes(def.prop) ? ['school'] : ['store'];
+  }
+  ITEMS.find(d => d.id === 'wallet').areas.push('bus', 'home');
+  ITEMS.push(
+    { id: 'phone', name: 'スマートフォン', object: 'phone', prop: 'bench', min: 115, max: 115, areas: ['street', 'bus', 'park', 'home'] },
+    { id: 'student-id', name: '学生証', object: 'student-id', prop: 'desk', min: 140, max: 140, areas: ['school', 'station'] },
+    { id: 'earphones', name: 'イヤホン', object: 'earphones', prop: 'bench', min: 130, max: 130, areas: ['street', 'station', 'park', 'home'] },
+    { id: 'notebook', name: 'ノート', object: 'notebook', prop: 'desk', min: 140, max: 140, areas: ['school', 'home'] },
+    { id: 'pencil-case', name: '筆箱', object: 'pencil-case', prop: 'desk', min: 145, max: 145, areas: ['school'] },
+    { id: 'blackboard-item', name: '黒板の上の学生証', object: 'student-id', prop: 'blackboard', min: 240, max: 250, areas: ['school'] },
+    { id: 'locker-item', name: 'ロッカーの上のノート', object: 'notebook', prop: 'locker', min: 230, max: 250, areas: ['school'] },
+    { id: 'volley-item', name: 'アンテナ付近のタオル', object: 'towel', prop: 'volley', min: 323, max: 323, areas: ['school'] },
+    { id: 'gym-towel', name: '体育館のタオル', object: 'towel', prop: 'gym-wall', min: 310, max: 310, areas: ['school'] },
+    { id: 'park-ball', name: '木の枝のボール', object: 'ball', prop: 'tree', min: 305, max: 305, areas: ['park'] }
+  );
+  const LESSONS = [
+    ['4つの動作を試そう', '↓ / Shiftでしゃがむ、Sを押してまたぐ、Spaceでジャンプ、Eで手を伸ばす。4つを試しましょう。'],
+    ['立ったまま通過しよう', '新しい教室の入口には頭上の余裕があります。何も押さず、立ったまま抜けましょう。'],
+    ['頭上を避けよう', '↓キーまたはShiftキーを押してしゃがみます。完全に障害物が消えるまでしゃがみ続けてください。'],
+    ['脚を広げてまたごう', 'ミニ電車が迫ります。Sを押して脚を左右に広げ、抜けるまで維持しましょう。'],
+    ['足元を上げて飛び越えよう', '横2個のコーンに近づいたらSpace。足が上を通るよう、少し手前でジャンプしましょう。'],
+    ['立ってEで取得しよう', '学生証が手元に近づいたら、立ったままE。自動では取得しません。通常プレイは取り逃がすと終了です。'],
+    ['空中でEを押そう', '高いタオルはSpaceでジャンプしてE。少し早いE入力は0.4秒間予約され、手が届くと取得できます。'],
+    ['疲労を管理しよう', 'しゃがんで12%以上にし、立って6%以下まで回復。最後に1回ジャンプして負荷を見ましょう。長押しほど疲労が増えます。'],
+    ['動作を組み合わせよう', 'しゃがむ → 立ってE → ジャンプしてE → Sでまたぐ → ジャンプで回避。見た目で判断して5つを続けましょう。']
+  ];
+  class GameModel {
+    constructor(random = Math.random) { this.random = random; this.mode = 'title'; this.reset(); }
+    reset() {
+      this.route = AREAS.slice();
+      this.distance = 0; this.itemScore = 0; this.items = 0;
+      this.crouchStrain = 0; this.ankleStrain = 0; this.crouchEffort = 0; this.uprightTime = 0;
+      this.jumpY = 0; this.jumpVelocity = 0; this.crouching = false; this.straddling = false;
+      this.speed = CONFIG.INITIAL_SPEED; this.events = []; this.effects = [];
+      this.soundEvents = []; this.gaitPhase = 0;
+      this.spawnTimer = 0.6; this.lastAction = ''; this.lastId = ''; this.kindRun = 0; this.lastKind = '';
+      this.elapsed = 0; this.reason = ''; this.paused = false; this.serial = 0;
+      this.planTime = 0; this.planLoad = 0; this.planEndTime = 0; this.recoveryUntil = 0; this.nextChallengeDistance = 350; this.challenges = 0; this.completedEvents = 0;
+      this.grabReservation = { remaining: 0, uid: null };
+      this.tutorial = { step: 0, done: false, actions: new Set(), peak: false, recovered: false, retry: 0, feedback: '', passed: 0 };
+    }
+    get strain() { return Math.min(100, this.crouchStrain + this.ankleStrain); }
+    get score() { return Math.floor(this.distance * 10) + this.itemScore; }
+    get headHeight() { return (this.crouching && this.jumpY === 0 ? CONFIG.CROUCH_HEIGHT : CONFIG.PASSAGE_HEIGHT) + this.jumpY; }
+    get handHeight() { return CONFIG.STANDING_REACH + this.jumpY; }
+    areaAt(distance) { return this.route[Math.floor(Math.max(0, distance) / CONFIG.AREA_LENGTH) % this.route.length]; }
+    get area() { return this.mode === 'tutorial' ? areaAt(this.distance) : this.areaAt(this.distance); }
+    get nextEvent() { return this.events.filter(e => !e.completed && !e.collected).reduce((first, event) => !first || event.z < first.z ? event : first, null); }
+    start() {
+      this.reset(); this.mode = 'playing';
+      // A fresh Fisher–Yates route per run; tutorial never uses this shuffled route.
+      for (let i = this.route.length - 1; i > 0; i--) {
+        const j = Math.floor(this.random() * (i + 1));
+        [this.route[i], this.route[j]] = [this.route[j], this.route[i]];
+      }
+      this.nextChallengeDistance = 350 + this.random() * 180;
+    }
+    startTutorial() { this.reset(); this.mode = 'tutorial'; this.speed = CONFIG.TUTORIAL_SPEED; this.setupLesson(); }
+    title() { this.reset(); this.mode = 'title'; }
+    setupLesson() {
+      this.soundEvents = []; this.gaitPhase = 0;
+      this.events = []; this.jumpY = 0; this.jumpVelocity = 0; this.crouching = false; this.straddling = false;
+      this.crouchStrain = 0; this.ankleStrain = 0; this.crouchEffort = 0; this.uprightTime = 0;
+      this.grabReservation = { remaining: 0, uid: null };
+      Object.assign(this.tutorial, { done: false, actions: new Set(), peak: false, recovered: false, retry: 0, feedback: '', passed: 0 });
+      this.spawnLessonEvent();
+    }
+    nextLesson() {
+      if (!this.tutorial.done) return;
+      if (this.tutorial.step === LESSONS.length - 1) { this.start(); return; }
+      this.tutorial.step++; this.setupLesson();
+    }
+    spawnLessonEvent() {
+      const obstacle = (id, z = 43) => { const def = OBSTACLES.find(e => e.id === id); this.events.push(this.makeObstacle(def, def.min, z)); };
+      const item = (id, z = 43) => this.events.push(this.makeItem(ITEMS.find(e => e.id === id), z));
+      const step = this.tutorial.step;
+      if (step === 1) obstacle('new-class');
+      if (step === 2) obstacle('strap');
+      if (step === 3) obstacle('mini-train');
+      if (step === 4) obstacle('double-cone');
+      if (step === 5) item('student-id');
+      if (step === 6) item('towel');
+      if (step === 8) { obstacle('club-door'); item('student-id', 61); item('towel', 79); obstacle('vault', 97); obstacle('panda', 115); }
+    }
+    makeObstacle(def, clearance = def.min, z = CONFIG.SPAWN_DISTANCE) {
+      const rule = def.rule || 'overhead';
+      const arrivalSpeed = this.mode === 'tutorial' ? CONFIG.TUTORIAL_SPEED : speedAt(this.distance + z);
+      const duration = (this.mode === 'tutorial' ? def.tutorialDuration : undefined) ?? def.duration ?? (rule === 'jump' ? 0.12 : rule === 'straddle' ? 0.16 : 0.32);
+      return { ...def, rule, kind: 'obstacle', clearance, height: clearance, z, width: def.width || 460,
+        duration, length: def.id === 'mini-train' && this.mode !== 'tutorial' ? this.futureDistance(duration, this.distance + z) - (this.distance + z) : arrivalSpeed * duration, uid: ++this.serial, failed: false, completed: false };
+    }
+    makeItem(def, z = CONFIG.SPAWN_DISTANCE) {
+      const min = def.min ?? (def.high ? 305 : 201), max = def.max ?? min;
+      const height = min + Math.floor(this.random() * (max - min + 1));
+      if (height > CONFIG.MAX_REACH || height < 0) throw new RangeError('Item is outside the reachable world');
+      const arrivalSpeed = this.mode === 'tutorial' ? CONFIG.TUTORIAL_SPEED : speedAt(this.distance + z);
+      return { ...def, name: def.name || objectNames[def.object] || 'アイテム', kind: 'item', z, height,
+        high: height > CONFIG.STANDING_REACH, reachDistance: arrivalSpeed * CONFIG.ITEM_REACH_TIME,
+        uid: ++this.serial, collected: false, completed: false };
+    }
+    futureDistance(seconds, start = this.distance) {
+      // The speed curve depends only on distance. Integrate it to place events in arrival-time slots.
+      let distance = start;
+      const step = 1 / 60;
+      for (let t = 0; t < seconds - 1e-8; t += step) distance += speedAt(distance) * Math.min(step, seconds - t);
+      return distance;
+    }
+    intervalRange() {
+      if (this.distance < 200) return [2.5, 3.5];
+      if (this.distance < 500) return [1.7, 2.5];
+      return [1.1, 1.8];
+    }
+    actionCost(def) {
+      if (def.rule === 'open') return 0;
+      const jump = def.rule === 'jump' || (def.min ?? 0) > CONFIG.STANDING_REACH;
+      if (jump) return CONFIG.JUMP_STRAIN + CONFIG.STRAIN_RECOVERY_RATE * (2 * CONFIG.JUMP_POWER / CONFIG.GRAVITY);
+      if (def.rule === 'straddle') return ((def.duration ?? 0.16) + CONFIG.ACTION_BUFFER) * (CONFIG.STRADDLE_STRAIN_RATE + CONFIG.STRAIN_RECOVERY_RATE);
+      if (def.rule === 'overhead' && def.min < CONFIG.PASSAGE_HEIGHT) return (0.32 + CONFIG.ACTION_BUFFER) * (CONFIG.CROUCH_STRAIN_RATES[2] + CONFIG.STRAIN_RECOVERY_RATE);
+      return 0;
+    }
+    crouchLoad(seconds) {
+      const [a, b] = CONFIG.CROUCH_STAGE_SECONDS, [low, mid, high] = CONFIG.CROUCH_STRAIN_RATES;
+      return Math.min(seconds, a) * low + Math.min(Math.max(0, seconds - a), b - a) * mid + Math.max(0, seconds - b) * high;
+    }
+    spawn() {
+      const [min, max] = this.intervalRange();
+      // Shorten ordinary slots by 12%; after airborne events retain the full landing margin.
+      const floor = this.lastAction === 'jump' ? 2 * CONFIG.JUMP_POWER / CONFIG.GRAVITY + CONFIG.ACTION_BUFFER : 0.95;
+      const interval = Math.max((min + this.random() * (max - min)) * CONFIG.TEMPO_FACTOR, floor);
+      let arrival = Math.max(this.elapsed + CONFIG.MIN_REACTION_TIME, this.planTime + interval, this.planEndTime + CONFIG.ACTION_BUFFER + 0.5);
+      const baseLoad = Math.max(this.planLoad, this.strain);
+      let target = this.futureDistance(arrival - this.elapsed), area = this.areaAt(target);
+      let endurance = null, windup = null;
+      // An occasional visibly long low passage creates genuine 80–95% fatigue.
+      // It starts after full recovery and is followed by standing-only recovery events.
+      if (this.distance >= this.nextChallengeDistance && arrival >= this.recoveryUntil) {
+        const ready = Math.max(arrival, this.planTime + (baseLoad + 1) / CONFIG.STRAIN_RECOVERY_RATE);
+        const readyTarget = this.futureDistance(ready - this.elapsed), readyArea = this.areaAt(readyTarget);
+        const corridors = OBSTACLES.filter(d => ['strap', 'rack-bar', 'bus-roof', 'club-door', 'tatami', 'old-entry'].includes(d.id) && d.areas.includes(readyArea.id) && d.id !== this.lastId);
+        if (corridors.length) {
+          endurance = { ...corridors[Math.floor(this.random() * corridors.length)], duration: CONFIG.ENDURANCE_SECONDS, endurance: true };
+          arrival = ready; target = readyTarget; area = readyArea;
+          const safeDoors = OBSTACLES.filter(d => d.rule === 'overhead' && !d.low && d.areas.includes(area.id) && d.id !== this.lastId);
+          if (safeDoors.length && this.random() < 0.8) {
+            const d = safeDoors[Math.floor(this.random() * safeDoors.length)];
+            windup = this.makeObstacle(d, d.min, target - this.distance);
+            Object.assign(windup, { areaId: area.id, arrivalTime: arrival, plannedCost: 0, fatigueWindup: true });
+            // This short standing gap preserves avoidable waste, but a brief accidental tap recovers.
+            arrival += 1.3; target = this.futureDistance(arrival - this.elapsed);
+          }
+        }
+      }
+      const forecast = Math.max(0, baseLoad - Math.max(0, arrival - this.planTime) * CONFIG.STRAIN_RECOVERY_RATE);
+      const legal = def => {
+        const cost = this.actionCost(def);
+        return def.id !== this.lastId && def.areas.includes(area.id) && (cost === 0 || arrival >= this.recoveryUntil && forecast + cost <= CONFIG.PLANNER_STRAIN_LIMIT);
+      };
+      const obstacles = OBSTACLES.filter(legal), items = ITEMS.filter(d => d.max <= CONFIG.MAX_REACH && legal(d));
+      let kind = this.random() < (area.id === 'park' ? 0.72 : 0.68) ? 'obstacle' : 'item';
+      if (this.kindRun >= 3 && kind === this.lastKind) kind = kind === 'item' ? 'obstacle' : 'item';
+      if (!obstacles.length) kind = 'item'; if (!items.length) kind = 'obstacle';
+      const choices = kind === 'obstacle' ? obstacles : items;
+      if (!endurance && !choices.length) { this.spawnTimer = 0.25; return; }
+      // Choose action groups first: many item skins must not crowd out jumping or straddling.
+      const groups = new Map();
+      for (const choice of choices) {
+        const action = kind === 'item' ? (choice.min > CONFIG.STANDING_REACH ? 'high-item' : 'low-item') : choice.rule === 'overhead' ? (choice.low ? 'crouch' : 'standing') : choice.rule;
+        if (!groups.has(action)) groups.set(action, []); groups.get(action).push(choice);
+      }
+      const buckets = [...groups.values()];
+      const bucket = buckets[Math.floor(this.random() * buckets.length)] || [];
+      const def = endurance || bucket[Math.floor(this.random() * bucket.length)], z = target - this.distance;
+      if (endurance) kind = 'obstacle';
+      const height = def.min === Infinity ? Infinity : def.min + Math.floor(this.random() * (def.max - def.min + 1));
+      const event = kind === 'obstacle' ? this.makeObstacle(def, height, z) : this.makeItem(def, z);
+      event.areaId = area.id; event.arrivalTime = arrival; event.plannedCost = this.actionCost(def);
+      this.planEndTime = arrival + (endurance ? CONFIG.ENDURANCE_SECONDS : kind === 'item' ? (event.high ? 0.55 : CONFIG.ITEM_REACH_TIME) : event.length / speedAt(target));
+      if (endurance) {
+        event.length = this.futureDistance(arrival - this.elapsed + CONFIG.ENDURANCE_SECONDS) - target;
+        const peak = this.crouchLoad(CONFIG.ENDURANCE_SECONDS + CONFIG.ENDURANCE_MARGIN);
+        this.planTime = this.planEndTime; this.planLoad = peak;
+        this.recoveryUntil = this.planEndTime + (peak - CONFIG.RECOVERY_TARGET) / CONFIG.STRAIN_RECOVERY_RATE + CONFIG.ACTION_BUFFER;
+        this.nextChallengeDistance = target + 900 + this.random() * 300; this.challenges++;
+        event.plannedCost = peak;
+      } else { this.planTime = arrival; this.planLoad = forecast + event.plannedCost; }
+      if (windup) this.events.push(windup);
+      this.events.push(event); this.lastId = def.id;
+      this.lastAction = def.rule === 'jump' || event.high ? 'jump' : def.rule || 'item';
+      this.kindRun = kind === this.lastKind ? this.kindRun + 1 : 1; this.lastKind = kind;
+      // Keep the lookahead bounded when a long passage adds time to the schedule.
+      this.spawnTimer = Math.max(interval, this.planTime + interval - CONFIG.MIN_REACTION_TIME - this.elapsed);
+    }
+    jump() {
+      if (!['playing', 'tutorial'].includes(this.mode) || this.paused || this.jumpY > 0 || this.jumpVelocity > 0) return false;
+      this.crouching = false; this.straddling = false; this.jumpVelocity = CONFIG.JUMP_POWER;
+      this.ankleStrain += CONFIG.JUMP_STRAIN;
+      if (this.mode === 'tutorial') {
+        this.tutorial.actions.add('jump');
+        if (this.tutorial.step === 7 && this.tutorial.recovered) this.tutorial.actions.add('fatigue-jump');
+        this.checkLesson();
+      }
+      else this.checkStrain('jump');
+      if (this.mode !== 'gameover') this.emitSound('jump');
+      return true;
+    }
+    grab() {
+      if (!['playing', 'tutorial'].includes(this.mode) || this.paused) return false;
+      if (this.mode === 'tutorial') this.tutorial.actions.add('grab');
+      const item = this.events.find(e => e.kind === 'item' && !e.collected && !e.completed);
+      this.grabReservation = { remaining: CONFIG.GRAB_BUFFER_SECONDS, uid: item?.uid ?? null };
+      this.effects.push({ type: 'reach', life: 0.25, high: Boolean(item?.high), height: item?.height });
+      const taken = this.tryGrab(); this.checkLesson(); return taken;
+    }
+    tryGrab() {
+      if (this.grabReservation.remaining <= 0) return false;
+      const reachable = this.events.find(e => e.uid === this.grabReservation.uid && e.kind === 'item' && !e.collected && !e.completed && Math.abs(e.z) <= e.reachDistance);
+      const airborne = this.jumpY > 0;
+      const valid = reachable && !this.crouching && !this.straddling && (reachable.high ? airborne && this.handHeight + CONFIG.REACH_TOLERANCE >= reachable.height : !airborne && this.jumpVelocity === 0);
+      if (!valid) return false;
+      this.grabReservation = { remaining: 0, uid: null }; // Exactly one object per key press.
+      reachable.collected = true; this.items++; const bonus = reachable.high ? 500 : 300; this.itemScore += bonus;
+      this.emitSound('collect', { high: reachable.high });
+      this.effects.push({ type: 'collect', text: '+' + bonus, life: 1, seed: this.random(), high: reachable.high, height: reachable.height });
+      if (this.mode === 'tutorial') this.lessonPass();
+      return true;
+    }
+    lessonPass() {
+      this.tutorial.passed++;
+      if (this.tutorial.step !== 8 || this.tutorial.passed === 5) this.tutorial.done = true;
+    }
+    failLesson(message) {
+      this.tutorial.feedback = message; this.tutorial.retry = 1.2; this.events = [];
+    }
+    checkLesson() {
+      if (this.mode !== 'tutorial') return;
+      const t = this.tutorial;
+      if (t.step === 0 && ['crouch', 'straddle', 'jump', 'grab'].every(a => t.actions.has(a))) t.done = true;
+      if (t.step === 7) {
+        if (this.crouching && this.crouchStrain >= 12) t.peak = true;
+        if (t.peak && !this.crouching && !this.straddling && this.jumpY === 0 && this.strain <= 6) t.recovered = true;
+        if (t.recovered && t.actions.has('fatigue-jump')) t.done = true;
+      }
+    }
+    checkStrain(cause) {
+      if (this.mode !== 'playing' || this.strain < 100) return;
+      const reason = cause === 'crouch' ? 'ヘルニアになりました' : cause === 'straddle' ? '股関節が限界を迎えました' : cause === 'jump' ? 'ジャンプのしすぎで足首をねんざしました！' : '体への負担が限界に達しました！';
+      this.gameOver(reason, 'fatigue');
+    }
+    collisionReason(event) {
+      if (event.rule === 'jump' && this.straddling) return 'そこまでの柔軟性はありません';
+      if (event.rule === 'straddle' && (this.jumpY > 0 || this.jumpVelocity > 0)) return 'そこまでの跳躍力はありません';
+      return event.name + (event.rule === 'overhead' ? 'に頭をぶつけました！' : 'にぶつかりました！');
+    }
+    emitSound(name, detail = {}) {
+      // Bounded even when the engine runs without an audio consumer (Colab/tests).
+      if (this.soundEvents.length >= 16) this.soundEvents.shift();
+      this.soundEvents.push({ name, time: this.elapsed, ...detail });
+    }
+    gameOver(reason, cause = 'miss') {
+      if (this.mode === 'gameover') return;
+      this.reason = reason; this.mode = 'gameover'; this.crouching = false; this.straddling = false;
+      this.emitSound('over', { cause });
+    }
+    update(dt, crouchHeld = false, straddleHeld = false) {
+      if (!['playing', 'tutorial'].includes(this.mode) || this.paused) return;
+      let remaining = Math.max(0, dt);
+      while (remaining > 1e-8 && ['playing', 'tutorial'].includes(this.mode)) {
+        const step = Math.min(remaining, CONFIG.FIXED_STEP); this.tick(step, crouchHeld, straddleHeld); remaining -= step;
+      }
+    }
+    tick(dt, crouchHeld, straddleHeld) {
+      this.elapsed += dt;
+      this.speed = this.mode === 'tutorial' ? CONFIG.TUTORIAL_SPEED : speedAt(this.distance);
+      this.distance += this.speed * dt;
+      const oldHead = this.headHeight, oldFoot = this.jumpY;
+      const wasAirborne = this.jumpY > 0 || this.jumpVelocity > 0;
+      const oldPose = this.crouching ? 'crouch' : this.straddling ? 'straddle' : 'stand';
+      if (this.jumpVelocity !== 0 || this.jumpY > 0) {
+        this.jumpY = Math.max(0, this.jumpY + this.jumpVelocity * dt - CONFIG.GRAVITY * dt * dt / 2);
+        this.jumpVelocity -= CONFIG.GRAVITY * dt;
+        if (this.jumpY < 1e-8 && this.jumpVelocity < 0) this.jumpY = 0;
+        if (this.jumpY === 0 && this.jumpVelocity < 0) this.jumpVelocity = 0;
+      }
+      const grounded = this.jumpY === 0 && this.jumpVelocity === 0;
+      this.crouching = crouchHeld && grounded;
+      this.straddling = !crouchHeld && straddleHeld && grounded;
+      const pose = this.crouching ? 'crouch' : this.straddling ? 'straddle' : 'stand';
+      if (grounded && wasAirborne) { this.emitSound('land'); this.gaitPhase = 0; }
+      else if (pose !== oldPose && grounded) this.emitSound(pose);
+      if (grounded && !wasAirborne) {
+        const previous = Math.floor(this.gaitPhase / Math.PI);
+        // Integrate cadence instead of elapsed*speed, keeping animation/audio in phase.
+        this.gaitPhase += dt * (10 + this.speed * 0.17) * (this.straddling ? 0.60 : this.crouching ? 0.82 : 1);
+        const contact = Math.floor(this.gaitPhase / Math.PI);
+        if (contact > previous) this.emitSound('foot', { foot: contact % 2 ? 'left' : 'right', crouching: this.crouching, straddling: this.straddling });
+      }
+      if (this.crouching) {
+        this.uprightTime = 0; this.crouchEffort += dt;
+        const rate = this.crouchEffort <= CONFIG.CROUCH_STAGE_SECONDS[0] ? CONFIG.CROUCH_STRAIN_RATES[0] : this.crouchEffort <= CONFIG.CROUCH_STAGE_SECONDS[1] ? CONFIG.CROUCH_STRAIN_RATES[1] : CONFIG.CROUCH_STRAIN_RATES[2];
+        this.crouchStrain += rate * dt;
+      } else {
+        if (grounded && !this.straddling) this.uprightTime += dt; else this.uprightTime = 0;
+        this.crouchEffort = Math.max(0, this.crouchEffort - dt * 0.75);
+        if (this.uprightTime >= CONFIG.CROUCH_RESET_SECONDS - 1e-8) this.crouchEffort = 0;
+        if (this.straddling) this.crouchStrain += CONFIG.STRADDLE_STRAIN_RATE * dt;
+      }
+      // One displayed gauge; normal running recovers a total of 8%/s, not 8% per component.
+      let recovery = dt * (grounded && !this.crouching && !this.straddling ? CONFIG.STRAIN_RECOVERY_RATE : CONFIG.ANKLE_RECOVERY_RATE);
+      const ankleRecovery = Math.min(this.ankleStrain, recovery); this.ankleStrain -= ankleRecovery; recovery -= ankleRecovery;
+      if (grounded && !this.crouching && !this.straddling) this.crouchStrain = Math.max(0, this.crouchStrain - recovery);
+      if (this.mode === 'tutorial') {
+        this.crouchStrain = Math.min(this.crouchStrain, 65); this.ankleStrain = Math.min(this.ankleStrain, 65);
+        if (this.crouching) this.tutorial.actions.add('crouch');
+        if (this.straddling) this.tutorial.actions.add('straddle');
+      }
+      this.checkStrain(this.crouching ? 'crouch' : this.straddling ? 'straddle' : 'idle');
+      if (this.mode === 'gameover') return;
+      for (const event of this.events) {
+        const oldZ = event.z; event.z -= this.speed * dt;
+        if (event.kind === 'item') this.tryGrab();
+        if (event.kind === 'obstacle' && oldZ >= -event.length && event.z <= 0) {
+          const head = oldZ <= 0 ? Math.max(oldHead, this.headHeight) : this.headHeight;
+          const foot = oldZ <= 0 ? Math.min(oldFoot, this.jumpY) : this.jumpY;
+          const valid = event.rule === 'open' || (event.rule === 'overhead' ? head <= event.clearance :
+            event.rule === 'straddle' ? this.straddling && event.height <= CONFIG.INSEAM * 0.85 && event.width <= CONFIG.MAX_STRADDLE_WIDTH : foot >= event.height);
+          if (!valid) {
+            event.failed = true;
+            if (this.mode === 'playing') { this.gameOver(this.collisionReason(event), 'collision'); return; }
+            this.emitSound('collision');
+            this.failLesson('もう一度！タイミングと姿勢を確かめましょう。'); break;
+          }
+          if (this.mode === 'tutorial' && this.tutorial.step === 1 && (this.crouching || this.straddling || this.jumpY > 0)) event.failed = true;
+        }
+        if (event.kind === 'obstacle' && !event.completed && oldZ >= -event.length && event.z < -event.length) {
+          event.completed = true; this.completedEvents++;
+          if (this.mode === 'tutorial') {
+            if (!event.failed) this.lessonPass();
+            else { this.failLesson('立ったまま通過してみましょう。'); break; }
+          }
+        }
+        if (event.kind === 'item' && !event.completed && event.z < -event.reachDistance) {
+          event.completed = true; this.completedEvents++;
+          if (!event.collected) {
+            if (this.mode === 'playing') { this.gameOver(event.name + 'を取り逃がしました！'); return; }
+            this.failLesson('取り逃がしても大丈夫。近づいたらEを押しましょう。'); break;
+          }
+        }
+      }
+      this.events = this.events.filter(e => e.z > -(e.length || e.reachDistance || 12) - 12);
+      this.grabReservation.remaining = Math.max(0, this.grabReservation.remaining - dt);
+      for (const fx of this.effects) fx.life -= dt;
+      this.effects = this.effects.filter(fx => fx.life > 0);
+      if (this.mode === 'playing') { this.spawnTimer -= dt; if (this.spawnTimer <= 0) this.spawn(); }
+      else {
+        if (this.tutorial.retry > 0) {
+          this.tutorial.retry -= dt;
+          if (this.tutorial.retry <= 0 && !this.tutorial.done) this.setupLesson();
+        }
+        this.checkLesson();
+      }
+    }
+  }
+  const api = { CONFIG, OBSTACLES, ITEMS, LESSONS, AREAS, SPEED_POINTS, speedAt, areaAt, GameModel };
+  if (typeof module !== 'undefined' && module.exports) module.exports = api;
+  else root.Run188 = api;
+})(typeof globalThis !== 'undefined' ? globalThis : this);
+
+</script>
+  <script>
+/* Original synthesized effects. No recordings, downloads or third-party assets. */
+(function (root, factory) {
+  const api = factory();
+  if (typeof module === 'object' && module.exports) module.exports = api;
+  else root.Run188Audio = api;
+})(typeof window === 'object' ? window : globalThis, function () {
+  'use strict';
+  const MAX_VOICES = 6;
+  class Sound {
+    constructor(storage) {
+      this.storage = storage;
+      this.enabled = storage.get('soundEnabled', 'true') !== 'false';
+      const savedVolume = storage.get('soundVolume', '0.7');
+      const volume = savedVolume.trim() === '' ? NaN : Number(savedVolume);
+      this.volume = Number.isFinite(volume) ? Math.max(0, Math.min(1, volume)) : 0.7;
+      const rawMaster=storage.get('masterVolume','0.85');
+      this.masterVolume=rawMaster.trim()!==''&&Number.isFinite(Number(rawMaster))?Math.max(0,Math.min(1,Number(rawMaster))):.85;
+      this.footCount=0;
+      this.context = null; this.voices = new Set(); this.lastUI = -Infinity;
+      this.error = ''; this.onPlay = null; this.onStateChange = null;
+      this.resumePromise = null; this.pending = [];
+    }
+    unlock() {
+      // Called only by a user gesture; simulation and page load never create audio.
+      if (!this.enabled && !this.music?.enabled) return Promise.resolve(false);
+      if (!this.resumePromise) this.error = '';
+      if (this.context?.state === 'closed') { this.stopAll(); this.music?.pause(); this.context = null; this.resumePromise = null; }
+      try {
+        if (!this.context) {
+          const Audio = window.AudioContext || window.webkitAudioContext;
+          if (!Audio) { this.error = 'このブラウザでは音声を利用できません。'; this.onStateChange?.(); return Promise.resolve(false); }
+          this.context = new Audio(); this.lastUI = -Infinity;
+          this.initGraph(this.context);
+        }
+        if (this.context.state === 'running') { this.error = ''; return Promise.resolve(true); }
+        if (!this.resumePromise) {
+          this.resumePromise = this.context.resume().then(() => {
+            if (this.context.state !== 'running') throw new Error('Audio not running');
+            this.error = '';
+            const pending = this.pending.splice(0);
+            for (const event of pending) if (event.detail.confirmation || Date.now() - event.at < 250) this.play(event.name, event.detail);
+            this.onStateChange?.();
+            return true;
+          }).catch(() => {
+            this.stopAll(); this.error = '音を再開できませんでした。設定の「音声を再開」を押してください。';
+            this.onStateChange?.(); return false;
+          }).finally(() => { this.resumePromise = null; });
+        }
+        return this.resumePromise;
+      } catch { this.error = '音声を開始できませんでした。ゲームはそのまま遊べます。'; this.onStateChange?.(); return Promise.resolve(false); }
+    }
+    initGraph(c) {
+      this.master=c.createGain();this.master.gain.value=this.volume*.75;
+      this.output=c.createGain();this.output.gain.value=this.masterVolume;
+      const compressor=c.createDynamicsCompressor();compressor.threshold.value=-12;compressor.knee.value=12;compressor.ratio.value=4;compressor.attack.value=.003;compressor.release.value=.12;
+      const limiter=c.createWaveShaper(),curve=new Float32Array(2048);
+      for(let i=0;i<curve.length;i++){const x=i/(curve.length-1)*2-1;curve[i]=.92*Math.tanh(x/.92);}
+      limiter.curve=curve;limiter.oversample='2x';
+      this.master.connect(this.output);this.output.connect(compressor);compressor.connect(limiter);limiter.connect(c.destination);
+      this.noise=c.createBuffer(1,Math.ceil(c.sampleRate*.24),c.sampleRate);
+      const samples=this.noise.getChannelData(0);let seed=188;
+      for(let i=0;i<samples.length;i++){seed=(1664525*seed+1013904223)>>>0;samples[i]=seed/2147483648-1;}
+    }
+    setMasterVolume(value) {
+      this.masterVolume=Math.max(0,Math.min(1,Number(value)||0));this.storage.set('masterVolume',this.masterVolume);
+      if(this.output)this.output.gain.setTargetAtTime(this.masterVolume,this.context.currentTime,.025);
+      if(!this.masterVolume){this.stopAll();this.music?.pause();}
+    }
+    setEnabled(value) {
+      this.enabled = Boolean(value); this.storage.set('soundEnabled', this.enabled);
+      if (!this.enabled) this.stopAll();
+    }
+    setVolume(value) {
+      this.volume = Math.max(0, Math.min(1, Number(value) || 0));
+      this.storage.set('soundVolume', this.volume);
+      if (this.master) this.master.gain.setTargetAtTime(this.volume * 0.75, this.context.currentTime, 0.015);
+      if (!this.volume) this.stopAll();
+    }
+    stopAll() { this.pending.length = 0; for (const voice of [...this.voices]) voice.stop(); }
+    stopMovement() {
+      this.pending = this.pending.filter(event => event.name === 'ui');
+      for (const voice of [...this.voices]) if (voice.name !== 'ui') voice.stop();
+    }
+    play(name, detail = {}) {
+      const c = this.context;
+      if (!this.enabled || !this.volume || !this.masterVolume || !c || c.state === 'closed' || this.error) return false;
+      if (c.state !== 'running' && typeof c.startRendering !== 'function') {
+        // Short first-gesture effects wait for resume; never accumulate a backlog.
+        if (this.resumePromise) {
+          if (name === 'foot') this.pending = this.pending.filter(event => event.name !== 'foot');
+          if (this.pending.length < MAX_VOICES) this.pending.push({ name, detail, at: Date.now() });
+        }
+        return false;
+      }
+      const now = c.currentTime;
+      if (name === 'ui' && now - this.lastUI < 0.07) return false;
+      if (name === 'foot' && [...this.voices].some(v => v.name === 'foot')) return false;
+      if (this.voices.size >= MAX_VOICES) {
+        const quiet = [...this.voices].find(v => v.name === 'foot' || v.name === 'ui');
+        if (!quiet) return false;
+        quiet.stop();
+      }
+      let duration = 0.10, frequency = 180, end = 70, level = 0.08, noise = 0.025, cutoff = 900;
+      switch (name) {
+        case 'foot': duration=.10; frequency=(detail.foot==='left'?155:174)+(this.footCount++%5-2)*4;end=82;
+          level=(detail.straddling?.10:detail.crouching?.13:.19)*(1+(this.footCount%3-1)*.035);noise=level*.45;cutoff=['home','school'].includes(detail.surface)?1400:2300;break;
+        case 'jump': duration=.18;frequency=140;end=410;level=.23;noise=.075;cutoff=3800;break;
+        case 'land': duration=.21;frequency=175;end=56;level=.24;noise=.10;cutoff=1900;break;
+        case 'crouch': case 'straddle': case 'stand': duration = name === 'stand' ? 0.06 : 0.11;
+          level=name==='straddle'?.065:0;frequency=135;end=95;noise=name==='stand'?.065:.105;cutoff=name==='straddle'?2100:1800; break;
+        case 'collect': duration = 0.34; frequency = detail.high ? 1046 : 880;
+          end = detail.high ? 1568 : 1320; level = 0.23; noise = 0; this.music?.duck(); break;
+        case 'collision': duration = 0.17; frequency = 105; end = 44; level = 0.18; noise = 0.085; break;
+        case 'over': duration = 0.43; frequency = detail.cause === 'fatigue' ? 220 : detail.cause === 'collision' ? 105 : 260;
+          end = 65; level = 0.24; noise = detail.cause === 'collision' ? 0.105 : 0; break;
+        case 'alarm': duration = 0.10; frequency = 620; end = 620; level = 0.025; noise = 0; break;
+        case 'ui': duration = detail.confirmation ? 0.12 : 0.07; frequency = detail.confirmation ? 660 : 540;
+          end = detail.confirmation ? 880 : 370; level = 0.16; noise = 0; break;
+        default: return false;
+      }
+      const sources = [], nodes = [];
+      const voice = { name, stop: () => {
+        for (const source of sources) { source.onended = null; try { source.stop(); } catch {} }
+        for (const node of [...sources, ...nodes]) node.disconnect();
+        this.voices.delete(voice);
+      } };
+      const envelope = (source, peak, seconds) => {
+        const gain = c.createGain(); nodes.push(gain);
+        gain.gain.setValueAtTime(0.0001, now);
+        gain.gain.linearRampToValueAtTime(peak, now + 0.004);
+        gain.gain.exponentialRampToValueAtTime(0.0001, now + seconds);
+        source.connect(gain); gain.connect(this.master);
+      };
+      if (level) {
+        const oscillator = c.createOscillator(); oscillator.type = 'triangle';
+        oscillator.frequency.setValueAtTime(frequency, now);
+        if (name === 'collect') oscillator.frequency.setValueAtTime(end, now + 0.08);
+        else if (name === 'over') {
+          // Impact/fatigue and ending form one voice; no duplicated game-over tone.
+          oscillator.frequency.exponentialRampToValueAtTime(end * 2, now + 0.10);
+          oscillator.frequency.setValueAtTime(end * 2, now + 0.14);
+          oscillator.frequency.exponentialRampToValueAtTime(end, now + duration);
+        } else oscillator.frequency.exponentialRampToValueAtTime(end, now + duration);
+        sources.push(oscillator); envelope(oscillator, level, duration);
+        if(name==='collect'){for(const ratio of[1.25,1.5]){const shimmer=c.createOscillator();shimmer.type='sine';shimmer.frequency.setValueAtTime(frequency*ratio,now);shimmer.frequency.setValueAtTime(end*ratio,now+.08);sources.push(shimmer);envelope(shimmer,level*.26,duration);}}
+        if(name==='jump'||name==='land'){const bass=c.createOscillator();bass.type='sine';bass.frequency.setValueAtTime(100,now);bass.frequency.exponentialRampToValueAtTime(45,now+.12);sources.push(bass);envelope(bass,.12,.12);}
+      }
+      if (noise) {
+        const source = c.createBufferSource(), filter = c.createBiquadFilter();
+        source.buffer = this.noise; filter.type = 'lowpass'; filter.frequency.value = cutoff;
+        source.connect(filter); nodes.push(filter); sources.push(source);
+        envelope(filter, noise, Math.min(duration, 0.13));
+      }
+      this.voices.add(voice);
+      // One completion callback stops and disconnects every node in the voice.
+      sources[0].onended = voice.stop;
+      for (const source of sources) { source.start(now); source.stop(now + duration); }
+      if (name === 'ui') this.lastUI = now;
+      if (this.onPlay) this.onPlay({ name, ...detail, audioTime: now, voices: this.voices.size, level });
+      return true;
+    }
+    consume(events, model) {
+      const over = events.find(e => e.name === 'over');
+      if (over) { this.stopAll(); this.play('over', over); return; }
+      if (model.paused || !['playing', 'tutorial'].includes(model.mode)) { this.stopMovement(); return; }
+      let latestFoot;
+      for (const event of events) if (event.name === 'foot') latestFoot = event;
+      for (const event of events) {
+        // Never replay a backlog after a slow frame or resume.
+        if (event.name === 'foot' && (event !== latestFoot || model.jumpY > 0 || model.jumpVelocity > 0 || model.elapsed - event.time > 0.12)) continue;
+        if (event.name === 'jump') for (const voice of [...this.voices]) if (voice.name === 'foot') voice.stop();
+        this.play(event.name,event.name==='foot'?{...event,surface:model.area?.id}:event);
+      }
+    }
+  }
+  return { Sound, MAX_VOICES };
+});
+
+</script>
+  <script>
+/* “Burgundy Motion” — original 134 BPM instrumental score, synthesized locally.
+   No sampled music, API, downloads or quotations from existing songs.
+   32-bar form: introduction 8 / build 4 / drop 12 / break 4 / return 4. */
+(function(root,factory){const api=factory();if(typeof module==='object'&&module.exports)module.exports=api;else root.Run188Music=api;})(typeof window==='object'?window:globalThis,function(){
+ 'use strict';
+ const BPM=134,STEP=60/BPM/4,MAX_NOTES=48;
+ const CHORDS=[[62,66,69,73],[59,62,66,69],[55,59,62,66],[57,61,64,69]];
+ const BASS=[38,35,43,45];
+ const MELODY=[[78,0,81,0,78,76,0,74,0,73,74,0,76,0,0,0],[78,0,74,0,73,0,71,0,0,74,78,0,76,0,0,0],[74,0,78,0,81,0,83,0,81,0,78,0,76,74,0,0],[73,0,76,0,81,0,78,76,0,73,0,71,73,0,0,0]];
+ const hz=midi=>440*2**((midi-69)/12),clamp=v=>Math.max(0,Math.min(1,v));
+ const levelAt=d=>d<100?0:d<300?1:d<500?2:d<800?3:4;
+ class Music {
+  constructor(sound,storage){
+   this.sound=sound;this.storage=storage;this.enabled=storage.get('bgmEnabled','true')!=='false';
+   const raw=storage.get('bgmVolume','0.35'),v=Number(raw);this.volume=raw.trim()!==''&&Number.isFinite(v)?clamp(v):.35;
+   this.scene='title';this.wantedScene='title';this.stage=0;this.wantedStage=0;this.step=0;this.nextTime=0;
+   this.timer=null;this.notes=new Set();this.running=false;this.active=false;this.ended=false;this.onNote=null;this.bars=0;this.maxNotes=0;this.context=null;this.finishTimer=null;this.lastMode='';this.error='';
+  }
+  ensureGraph(){
+   const c=this.sound.context;if(!c||this.context===c)return;
+   this.pause();this.context=c;this.bus=c.createGain();this.duckBus=c.createGain();this.fade=c.createGain();
+   this.bus.gain.value=this.volume;this.duckBus.gain.value=1;this.fade.gain.value=0;
+   this.bus.connect(this.duckBus);this.duckBus.connect(this.fade);this.fade.connect(this.sound.output||c.destination);
+  }
+  setEnabled(v){this.error='';this.enabled=Boolean(v);this.storage.set('bgmEnabled',this.enabled);if(!v)this.pause();}
+  setVolume(v){this.volume=clamp(Number(v)||0);this.storage.set('bgmVolume',this.volume);if(this.bus)this.bus.gain.setTargetAtTime(this.volume,this.context.currentTime,.03);if(!this.volume)this.pause();}
+  update(model,hidden=false){
+   if(this.error)return;
+   try {
+   this.wantedScene=model.mode==='title'?'title':'play';this.wantedStage=levelAt(model.distance);
+   this.active=!hidden&&!model.paused&&['title','playing','tutorial'].includes(model.mode);
+   if(model.mode==='gameover') {if(!this.ended)this.finish();this.ended=true;this.lastMode=model.mode;return;}
+   if(this.lastMode==='gameover'&&this.active){this.step=0;this.scene=this.wantedScene;this.stage=this.wantedStage;}
+   this.lastMode=model.mode;this.ended=false;
+   if(!this.active||!this.enabled||!this.volume||!this.sound.masterVolume){this.pause();return;}
+   if(this.sound.context?.state!=='running'||this.sound.error){this.pause();return;}
+   this.ensureGraph();
+   if(!this.running)this.start();
+   } catch {this.pause();this.error='BGMを開始できませんでした。音声を再開できます。';this.sound.onStateChange?.();}
+  }
+  start(){
+   if(this.running||!this.context||this.context.state!=='running')return;
+   clearTimeout(this.finishTimer);this.finishTimer=null;
+   const now=this.context.currentTime;this.nextTime=now+.035;
+   this.fade.gain.cancelScheduledValues(now);this.fade.gain.setValueAtTime(0,now);this.fade.gain.linearRampToValueAtTime(1,now+.22);
+   this.running=true;this.schedule();this.timer=setInterval(()=>{try{this.schedule();}catch{this.pause();this.error='BGMが停止しました。音声を再開できます。';this.sound.onStateChange?.();}},40);
+  }
+  pause(){
+   clearInterval(this.timer);this.timer=null;clearTimeout(this.finishTimer);this.finishTimer=null;
+   this.running=false;for(const note of [...this.notes])note.stop();
+   if(this.fade){const now=this.context.currentTime;this.fade.gain.cancelScheduledValues(now);this.fade.gain.setValueAtTime(0,now);}
+  }
+  finish(){
+   if(!this.running)return;
+   clearInterval(this.timer);this.timer=null;this.running=false;
+   const now=this.context.currentTime;this.fade.gain.cancelScheduledValues(now);this.fade.gain.setValueAtTime(1,now);this.fade.gain.linearRampToValueAtTime(0,now+.38);
+   this.finishTimer=setTimeout(()=>{this.finishTimer=null;for(const note of [...this.notes])note.stop();},440);
+  }
+  duck(){if(!this.duckBus)return;const now=this.context.currentTime;this.duckBus.gain.cancelScheduledValues(now);this.duckBus.gain.setValueAtTime(.52,now);this.duckBus.gain.linearRampToValueAtTime(1,now+.28);}
+  schedule(){
+   const c=this.context;if(!this.running||c.state!=='running'){this.pause();return;}
+   // On timer throttling skip stale beats instead of releasing a burst of sound.
+   if(this.nextTime<c.currentTime-.12){const skip=Math.ceil((c.currentTime-this.nextTime)/STEP);this.step+=skip;this.nextTime+=skip*STEP;}
+   while(this.nextTime<c.currentTime+.12){this.renderStep(this.step,this.nextTime);this.step++;this.nextTime+=STEP;}
+  }
+  renderStep(index,time){
+   const beat=index%16,bar=Math.floor(index/16)%32;
+   if(beat===0){this.scene=this.wantedScene;this.stage=this.wantedStage;this.bars++;}
+   const chordIndex=Math.floor(bar/2)%4,chord=CHORDS[chordIndex],title=this.scene==='title',stage=this.stage;
+   const breakBar=bar>=24&&bar<28,build=bar>=8&&bar<12,drop=bar>=12&&bar<24;
+   const energy=title?.48:breakBar?.58:drop?1:.8;
+   if(beat%4===0&&(!title||beat%8===0)&&(!breakBar||beat===0))this.note('kick',0,time,.22,.31*energy);
+   if((beat===4||beat===12)&&!title&&!breakBar)this.note('clap',0,time,.15,.13*energy);
+   if(beat%2===1&&(!title||beat%4===3))this.note('hat',0,time,beat%4===3?.10:.045,(beat%4===3?.065:.041)*energy);
+   if(build&&!title&&stage>=2&&beat>=8&&bar%2===1)this.note('clap',0,time,.06,.05+beat*.003);
+   if(beat===0)for(const pitch of chord)this.note('pad',pitch,time,STEP*17.5,.024*energy);
+   if([0,6,8,14].includes(beat)&&!title)this.note('bass',BASS[chordIndex],time,STEP*(stage>0?1.55:.85),.16*energy);
+   if(stage>=1&&!title&&[3,11].includes(beat))this.note('bass',BASS[chordIndex]+12,time,STEP*.7,.09*energy);
+   if((title&&beat%4===2)||(!title&&stage>=2&&beat%2===0)){
+    const pitch=chord[(Math.floor(beat/2)+bar)%4]+12;
+    this.note('arp',pitch,time,STEP*1.65,.046*energy);
+   }
+   if(!title&&stage>=2&&!breakBar){const pitch=MELODY[Math.floor(bar/2)%4][beat];if(pitch)this.note('lead',pitch,time,STEP*(beat%4===0?2.7:1.5),(.08+stage*.008)*energy);}
+   if(!title&&stage>=3&&beat===14&&bar%4===3)this.note('sweep',0,time,STEP*2,.06);
+   if(!title&&stage>=4&&drop&&beat%4===2)this.note('arp',chord[(beat+bar)%4]+24,time,STEP,.035);
+  }
+  note(kind,midi,at,duration,level){
+   const c=this.context;if(!c||this.notes.size>=MAX_NOTES)return false;
+   const sources=[],nodes=[],gain=c.createGain();nodes.push(gain);gain.connect(this.bus);
+   const peak=level,attack=kind==='pad'?.10:.004;
+   gain.gain.setValueAtTime(.0001,at);gain.gain.linearRampToValueAtTime(peak,at+attack);
+   if(kind==='pad'){gain.gain.setValueAtTime(peak*.65,at+duration*.65);gain.gain.linearRampToValueAtTime(.0001,at+duration);}
+   else gain.gain.exponentialRampToValueAtTime(.0001,at+duration);
+   const filter=c.createBiquadFilter();nodes.push(filter);filter.connect(gain);
+   if(['hat','clap','sweep'].includes(kind)){
+    const src=c.createBufferSource();src.buffer=this.sound.noise;src.loop=true;src.connect(filter);sources.push(src);
+    filter.type=kind==='hat'?'highpass':'bandpass';filter.frequency.setValueAtTime(kind==='hat'?6500:kind==='clap'?1500:500,at);filter.Q.value=kind==='sweep'?.4:.65;
+    if(kind==='sweep')filter.frequency.exponentialRampToValueAtTime(6500,at+duration);
+   }else{
+    filter.type='lowpass';filter.frequency.value={kick:1800,bass:560,pad:1400,arp:4200,lead:2900}[kind]||2500;
+    for(let i=0;i<(kind==='pad'||kind==='lead'?2:1);i++){
+     const osc=c.createOscillator();osc.type=kind==='kick'?'sine':kind==='arp'?'triangle':'sawtooth';
+     osc.frequency.setValueAtTime(kind==='kick'?145:hz(midi),at);osc.detune.value=i?7:-3;
+     if(kind==='kick')osc.frequency.exponentialRampToValueAtTime(43,at+.14);
+     osc.connect(filter);sources.push(osc);
+    }
+   }
+   const note={kind,at,stop:()=>{for(const s of sources){s.onended=null;try{s.stop();}catch{}s.disconnect();}for(const n of nodes)n.disconnect();this.notes.delete(note);}};
+   this.notes.add(note);this.maxNotes=Math.max(this.maxNotes,this.notes.size);sources[0].onended=note.stop;
+   for(const s of sources){s.start(at);s.stop(at+duration+.015);}
+   this.onNote?.({kind,midi,at,duration,bar:Math.floor(this.step/16),scene:this.scene,stage:this.stage});return true;
+  }
+ }
+ return{Music,BPM,STEP,MAX_NOTES,CHORDS,MELODY,levelAt};
+});
+
+</script>
+  <script>
+/* Adaptive rendering only: never changes simulation, collision or audio tempo. */
+(function(root,factory){const api=factory();if(typeof module==='object'&&module.exports)module.exports=api;else root.Run188Quality=api;})(typeof window==='object'?window:globalThis,function(){
+  'use strict';
+  const PRESETS=Object.freeze({
+    low:Object.freeze({dpr:1,resolution:.8,detail:0,fixtures:7,shadows:false,blur:0}),
+    medium:Object.freeze({dpr:1.5,resolution:1,detail:1,fixtures:9,shadows:true,blur:6}),
+    high:Object.freeze({dpr:2,resolution:1,detail:2,fixtures:11,shadows:true,blur:12})
+  });
+  class Quality {
+    constructor(storage,mobile=false){this.storage=storage;const saved=storage.get('quality','auto');this.mode=['auto','low','medium','high'].includes(saved)?saved:'auto';this.level=this.mode==='auto'?(mobile?'medium':'high'):this.mode;this.onChange=null;this.changes=0;this.reset();}
+    get preset(){return PRESETS[this.level];}
+    reset(){this.seconds=0;this.frames=0;this.frameSum=0;this.costSum=0;this.slow=0;this.fast=0;}
+    set(mode){if(!['auto','low','medium','high'].includes(mode))return;this.mode=mode;this.storage.set('quality',mode);this.reset();if(mode!=='auto')this.level=mode;this.onChange?.();}
+    sample(dt,cost,active=true){
+      if(this.mode!=='auto'||!active||dt<=0||dt>.25)return;
+      this.seconds+=dt;this.frames++;this.frameSum+=dt*1000;this.costSum+=cost;
+      if(this.seconds<1)return;
+      const ms=this.frameSum/this.frames,draw=this.costSum/this.frames;
+      this.slow=ms>25||draw>11?this.slow+this.seconds:0;
+      this.fast=ms<18.8&&draw<5.5?this.fast+this.seconds:0;
+      this.seconds=this.frames=this.frameSum=this.costSum=0;
+      const levels=['low','medium','high'],index=levels.indexOf(this.level);
+      if(this.slow>=3&&index>0){this.level=levels[index-1];this.changed();}
+      else if(this.fast>=15&&index<2){this.level=levels[index+1];this.changed();}
+    }
+    changed(){this.changes++;this.reset();this.onChange?.();}
+  }
+  return{Quality,PRESETS};
+});
+
+</script>
+  <script>
+/* Visual rig in centimetre-projected pixels; physics remains in GameModel. */
+(function(root,factory){const api=factory();if(typeof module==='object'&&module.exports)module.exports=api;else root.Run188Rig=api;})(typeof window==='object'?window:globalThis,function(){
+ 'use strict';
+ const TAU=Math.PI*2,clamp=(v,a,b)=>Math.max(a,Math.min(b,v));
+ function knee(hip,ankle,side){
+   const dx=ankle[0]-hip[0],dy=ankle[1]-hip[1],distance=Math.max(.001,Math.hypot(dx,dy));
+   const thigh=62.1,shin=62.1,d=Math.min(distance,thigh+shin-.01),along=d/2,bend=Math.sqrt(Math.max(0,thigh*thigh-along*along));
+   // Bend into depth. The third coordinate retains the full fixed-length 3D joint.
+   return[hip[0]+dx/distance*along,hip[1]+dy/distance*along,bend];
+ }
+ class Rig {
+   constructor(){this.crouch=0;this.straddle=0;this.landing=0;this.lastAir=false;this.airTime=0;this.lastElapsed=-1;this.feet=[{cycle:-1,anchor:0},{cycle:-1,anchor:0}];this.pose=null;}
+   update(model,dt,ambient,project){
+     const active=['playing','tutorial'].includes(model.mode),air=model.jumpY>0||model.jumpVelocity>0;
+     const phase=active?model.gaitPhase:ambient*5,distance=active?model.distance:ambient*4;
+     if(model.elapsed<this.lastElapsed){this.crouch=this.straddle=this.landing=0;this.lastAir=false;for(const foot of this.feet)foot.cycle=-1;}
+     this.lastElapsed=model.elapsed;
+     const ease=1-Math.exp(-Math.min(.1,dt)*28);
+     this.crouch+=((model.crouching&&!air?1:0)-this.crouch)*ease;
+     this.straddle+=((model.straddling&&!air?1:0)-this.straddle)*ease;
+     if(this.lastAir&&!air)this.landing=1;
+     this.airTime=air?(this.lastAir?this.airTime+dt:0):0;
+     this.landing=Math.max(0,this.landing-dt*6);this.lastAir=air;
+     // Head follows the safe collision height immediately; limb settling never delays input.
+     const height=(model.crouching&&!air?122:190)*1.38;
+     const crouch=this.crouch,spread=this.straddle;
+     const bounce=air?0:Math.sin(phase*2)**2*2.4;
+     const takeoff=air?Math.max(0,1-this.airTime/.09)*7:0;
+     const hips=-124.2+takeoff+crouch*46+spread*20+this.landing*9+bounce;
+     const shoulder=-207+crouch*88+this.landing*6+bounce;
+     const twist=Math.sin(phase)*3*(1-crouch*.5)*(air?.25:1),legs=[];
+     for(let i=0;i<2;i++){
+       const side=i?1:-1,offset=i?0:Math.PI,p=(phase+offset)%TAU,u=p/TAU,cycle=Math.floor((phase+offset)/TAU),f=this.feet[i];
+       // At every audible contact (phase kπ), fix a world-space footprint for the stance.
+       const strideZ=active?Math.min(3.7,model.speed/(10+model.speed*.17)*1.7):1.15;
+       if(cycle!==f.cycle||f.anchor<distance-10){f.cycle=cycle;f.anchor=distance+strideZ;}
+       const contact=u<.38&&!air,z=contact?f.anchor-distance: -strideZ+2*strideZ*clamp((u-.38)/.62,0,1);
+       const lift=air?(8+Math.sin(clamp((300-model.jumpVelocity)/600,0,1)*Math.PI)*17):contact?0:Math.sin((u-.38)/.62*Math.PI)*(19+Math.min(12,model.speed*.2))*(1-spread*.8);
+       const ground=project(z*(1-spread*.8));
+       let ankle=[side*(19+spread*50)*ground.s,clamp(ground.y-636,-40,18)-9-lift];
+       const hip=[side*14+twist*.35,hips];
+       // The visible ankle cannot stretch either fixed-length segment.
+       const dx=ankle[0]-hip[0],dy=ankle[1]-hip[1],len=Math.hypot(dx,dy),max=124.1;
+       if(len>max)ankle=[hip[0]+dx/len*max,hip[1]+dy/len*max];
+       const joint=knee(hip,ankle,side),projected=[joint[0]+joint[2]*side*.10,joint[1]-joint[2]*.38];
+       legs.push({hip,knee:projected,joint,ankle,contact,worldAnchor:f.anchor,side,toe:air?side*.16:contact?side*.07:side*(.12+lift*.009),depth:z});
+     }
+     this.pose={phase,air,height,hips,shoulder,twist,crouch,spread,landing:this.landing,legs};return this.pose;
+   }
+ }
+ return{Rig,knee};
+});
+
+</script>
+  <script>
+/* Original Canvas scenery. Small, bounded atlases avoid building textures per frame. */
+(function(root){
+ 'use strict';
+ class Scenery {
+  constructor(){this.cache=new Map();this.level='high';}
+  clear(level=this.level){this.cache.clear();this.level=level;}
+  fixture(context,area,index){
+   const variant=((index%3)+3)%3,key=area+variant;
+   if(!this.cache.has(key))this.cache.set(key,this.build(area,variant));
+   const image=this.cache.get(key);context.drawImage(image,-150,-510,300,520);
+  }
+  build(area,v){
+   const c=document.createElement('canvas'),ratio=this.level==='high'?1.5:1;c.width=300*ratio;c.height=520*ratio;
+   const x=c.getContext('2d');x.scale(ratio,ratio);x.translate(150,510);
+   const rect=(a,b,w,h,color)=>{x.fillStyle=color;x.fillRect(a,b,w,h);};
+   const line=(a,b,c,d,color,width=1)=>{x.strokeStyle=color;x.lineWidth=width;x.beginPath();x.moveTo(a,b);x.lineTo(c,d);x.stroke();};
+   const poly=(p,color)=>{x.fillStyle=color;x.beginPath();p.forEach(([a,b],i)=>i?x.lineTo(a,b):x.moveTo(a,b));x.closePath();x.fill();};
+   const ellipse=(a,b,w,h,color)=>{x.fillStyle=color;x.beginPath();x.ellipse(a,b,w,h,0,0,Math.PI*2);x.fill();};
+   const grad=(a,b,color,dark)=>{const g=x.createLinearGradient(a,0,b,0);g.addColorStop(0,color);g.addColorStop(.35,dark);g.addColorStop(1,color);return g;};
+   const box=(a,b,w,h,front,side='#3f4649',top='#a6a59b',d=16)=>{poly([[a+w,b],[a+w+d,b-d],[a+w+d,b+h-d],[a+w,b+h]],side);poly([[a,b],[a+d,b-d],[a+w+d,b-d],[a+w,b]],top);rect(a,b,w,h,front);line(a,b,a+w,b,'#f8edcf66');};
+   const glass=(a,b,w,h)=>{rect(a,b,w,h,'#263d4b');rect(a+3,b+3,w-6,h-6,grad(a,a+w,'#617e8c','#344f62'));poly([[a+4,b+4],[a+w*.63,b+4],[a+w*.25,b+h-4],[a+4,b+h-4]],'#c0d5d534');line(a,b+h,a+w,b+h,'#d1d5cb',3);line(a+w/2,b,a+w/2,b+h,'#aab3b2',2);};
+   const wood=(a,b,w,h)=>{box(a,b,w,h,'#957458','#554b42','#b59a76',10);if(this.level!=='low')for(let i=8;i<h;i+=13)line(a+3,b+i,a+w-3,b+i+Math.sin(i)*2,'#dcc29a3b');};
+   const tree=(a,b,r)=>{rect(a-6,b-96,12,100,grad(a-6,a+6,'#a58a63','#574d3f'));line(a,b-65,a-25,b-90,'#746448',6);for(let n=0;n<7;n++){const t=n*2.4;ellipse(a+Math.cos(t)*r*.46,b-125+Math.sin(t)*r*.46,r*.6,r*.64,['#344d40','#46664a','#5b7550'][n%3]);}ellipse(a+12,b-146,r*.37,r*.35,'#a0aa6738');};
+   ellipse(6,2,130,9,'#1119233b');
+   if(area==='street'){
+    const height=310+v*54,wall=['#a19788','#b0a59a','#798b91'][v];
+    box(-114,-height,170,height,wall,'#4a545b','#c8c2ae',40);
+    for(let row=0;row<Math.floor(height/74)-1;row++)for(let col=0;col<2;col++){
+     const a=-100+col*77,b=-height+24+row*73;glass(a,b,57,47);rect(a-3,b+47,63,5,'#d0c9b7');
+     if(this.level==='high'){line(a-2,b+53,a+59,b+53,'#323e4650',3);rect(a+8,b+5,12,36,'#d5c8a122');}
+    }
+    box(-119,-69,184,12,['#683b41','#354b52','#726346'][v],'#39414a','#beafa0',7);
+    glass(-99,-53,60,51);rect(-25,-53,64,53,'#34434b');glass(-20,-49,54,37);rect(22,-28,3,14,'#c8c9b7');
+    x.font='11px sans-serif';x.fillStyle='#efe3ce';x.textAlign='center';x.fillText(['COFFEE','BOOKS','ATELIER'][v],-24,-77);
+    if(this.level!=='low'){
+     for(let row=0;row<12;row++)line(-110,-height+12+row*24,52,-height+12+row*24,'#ded4bf20');
+     box(18,-height-19,30,19,'#879393','#424e54','#bfc3b5',9);line(40,-height-19,40,-height-49,'#737c7b',2);
+    }
+    rect(98,-275,6,275,grad(98,104,'#89969a','#35454f'));line(101,-273,74,-290,'#94a0a0',6);box(43,-294,33,6,'#d6cbb0','#4a5761','#c8c7b8',5);
+    if(v!==1){box(79,-32,43,32,'#aaa497','#565e58','#c2bea8',8);tree(100,-29,27);}
+    else{rect(95,-187,32,37,'#e7e1cf');rect(100,-182,22,27,'#3d5e78');rect(109,-177,4,16,'#d5e2dd');}
+   } else if(area==='park'){
+    tree(-51,0,74);tree(67,-38,58);wood(-81,-42,143,10);wood(-81,-74,143,23);for(const a of[-67,44]){rect(a,-33,6,33,'#3f4845');line(a,-67,a,-36,'#3f4845',5);}
+    if(v===1){line(91,0,91,-148,'#6a8381',6);line(91,-148,133,-148,'#769894',7);line(133,-148,133,0,'#517470',6);line(103,-148,103,-43,'#8d9590',2);wood(99,-43,21,6);}
+    for(let i=0;i<24;i++)line(-130+i*11,1,-127+i*11,-5-i%8,'#64815b',2);
+   } else if(area==='school'){
+    box(-126,-360,238,360,'#b8bcb6','#616f73','#d3d7c9',17);rect(-126,-90,238,87,'#8a9994');rect(-126,-8,238,8,'#53605d');
+    glass(-109,-300,108,155);box(16,-286,76,286,'#8e795f','#555a56','#bcb59d',9);glass(24,-266,60,102);rect(77,-133,5,25,'#c0c6bb');
+    if(v===1){rect(-103,-111,91,52,'#576c5d');for(let i=0;i<3;i++)rect(-95+i*26,-104,20,36,['#dad4b9','#b9ccc7','#c8b6a4'][i]);}
+    rect(-117,-347,219,5,'#eeefd8');
+   } else if(area==='station'||area==='bus'){
+    box(-123,-354,237,354,'#aebbb8','#596971','#d0d4c7',17);glass(-112,-307,212,135);rect(-125,-146,241,14,area==='bus'?'#a69664':'#586e8a');
+    box(-112,-86,206,69,area==='bus'?'#3d5e7a':'#635671','#253847','#667c90',12);
+    for(let i=0;i<4;i++){rect(-108+i*50,-82,45,40,'#ffffff0b');line(-85+i*50,-79,-85+i*50,-20,'#112e442e',2);}
+    box(-114,-37,211,14,'#718298','#31495b','#91a3aa',14);
+    for(const a of[-117,109]){rect(a,-323,5,323,grad(a,a+5,'#d2d3c2','#7f9397'));ellipse(a+2,-324,6,4,'#dfe0cb');}
+    rect(-112,-344,222,5,'#f0edd3');line(-106,-326,102,-326,'#8a9c9f',7);
+    for(const a of[-67,30]){rect(a,-325,5,54,'#cfd2bb');x.strokeStyle='#e5e5d1';x.lineWidth=4;x.beginPath();x.ellipse(a+2,-261,10,12,0,0,Math.PI*2);x.stroke();}
+    if(area==='station'){box(-113,-356,219,8,'#bbc5be','#667c84','#dfe4d7',17);for(let i=0;i<10;i++)line(-109+i*21,-363,-109+i*21,-347,'#a6b6b5',2);}
+   } else if(area==='store'){
+    box(-123,-323,231,323,'#c4cbc2','#697b7c','#e3e4d5',22);
+    for(let row=0;row<5;row++){
+     const b=-273+row*51;rect(-115,b,211,31,'#465e62');
+     for(let col=0;col<9;col++){const a=-110+col*23;box(a,b+3,16,27,['#c49975','#769b8c','#cabd83','#b48488'][(row+col+v)%4],'#4d555346','#e3d6b177',3);rect(a+2,b+10,12,9,'#f2e7d277');}
+     box(-119,b+32,223,7,'#d8dacc','#677c7e','#f2efda',12);rect(-110,b+34,20,3,'#bd685e');
+    }
+    rect(-126,-320,242,18,'#718d7c');rect(-117,-308,223,3,'#eee8c0');
+    if(v===2){box(43,-69,78,69,'#7d9a93','#3f5c60','#bad0bb',15);box(60,-92,30,22,'#2d4c58','#24353f','#849998',6);rect(64,-89,22,14,'#93b5ac');}
+   } else if(area==='home'){
+    box(-124,-346,235,346,'#c6bda8','#807661','#ddd2b4',15);wood(-114,-331,224,11);wood(-113,-319,14,319);wood(93,-319,14,319);
+    glass(-77,-278,146,153);rect(-86,-286,8,170,'#c0b49d');rect(70,-286,10,170,'#e1d4b6');
+    if(v===1){wood(-96,-83,180,77);for(let i=0;i<3;i++){rect(-90,-76+i*24,164,21,'#8a7057');rect(-9,-68+i*24,18,3,'#d0b994');}}
+    else{box(-91,-70,177,65,'#7d8376','#565b51','#a0a592',18);box(-89,-98,176,40,'#929789','#5b665d','#b7bba6',12);line(-3,-90,-3,-40,'#c4c5ab',1);}
+    line(107,-209,107,-63,'#9d8b69',4);poly([[85,-235],[124,-235],[135,-204],[77,-204]],'#e3ceb0');ellipse(106,-204,29,5,'#fae0b575');
+   }
+   return c;
+  }
+ }
+ root.Run188Scenery={Scenery};
+})(window);
+
+</script>
+  <script>
+/* Canvas scenery, interface, input and sound. The rules live in game-engine.js. */
+(function () {
+  'use strict';
+  const { CONFIG, LESSONS, GameModel } = window.Run188;
+  const $ = id => document.getElementById(id);
+  const game = $('game'), canvas = $('canvas');
+  let ctx = canvas.getContext('2d');
+  const model = new GameModel();
+  const held = new Set();
+  const storage = {
+    get(key, fallback) { try { return localStorage.getItem('188cm-run:' + key) ?? fallback; } catch { return fallback; } },
+    set(key, value) { try { localStorage.setItem('188cm-run:' + key, String(value)); } catch { /* Colab may disable storage. Keep playing. */ } }
+  };
+  const ranking = new Run188Ranking.Ranking(window.RUN188_ONLINE_CONFIG, storage);
+  let nicknameStart = false, nicknameAsked = storage.get('nicknameAsked', 'false') === 'true';
+  let best = Number(storage.get('best', '0')) || 0;
+  const sound = new Run188Audio.Sound(storage);
+  const music = new Run188Music.Music(sound,storage); sound.music=music;
+  const quality = new Run188Quality.Quality(storage, matchMedia("(pointer: coarse)").matches);
+  const rig = new Run188Rig.Rig(), scenery = new Run188Scenery.Scenery();
+  let lastTime = null, uiMode = '', lessonIndex = -1;
+  let resumeAt = 0, touchCrouch = false, touchStraddle = false, ambientTime = 0;
+  let reducedEffects = storage.get('reducedEffects', String(matchMedia('(prefers-reduced-motion: reduce)').matches)) === 'true';
+  let lastWarningAt = -Infinity, resultVersion = 0;
+  let renderScale = 1, hazeGradient, vignetteGradient, floorShade;
+  let frameID = 0, lastDraw = -Infinity, visualDT = 0, lastUI = -Infinity, lastPaused = false;
+  const performanceStats = { frames: 0, drawn: 0, lastCost: 0, maxCost: 0 };
+  const drawEvents = [], materials = new Map();
+  function material(base,light,dark,width=70) {
+    const key=[base,light,dark,width].join();
+    if(!materials.has(key)){if(materials.size>=64)materials.clear();const g=ctx.createLinearGradient(-width,0,width,0);g.addColorStop(0,dark);g.addColorStop(.4,base);g.addColorStop(.72,light);g.addColorStop(1,dark);materials.set(key,g);}
+    return materials.get(key);
+  }
+  const W = 960, H = 680, CX = 480, HORIZON = 246, GROUND = 636, CM = 1.38;
+
+  function focusGame() { game.focus({ preventScroll: true }); $('focus-tip').hidden = true; }
+  function clearInput(resetPose = true) {
+    held.clear(); touchCrouch = false; touchStraddle = false;
+    if (resetPose) { model.crouching = false; model.straddling = false; }
+  }
+  function activate(action) {
+    sound.stopMovement(); clearInput(); resumeAt = 0; lastWarningAt = -Infinity; action(); uiMode = ''; focusGame(); syncUI();
+  }
+  function pause() {
+    if (!['playing', 'tutorial'].includes(model.mode)) return;
+    sound.stopMovement(); music.pause(); model.soundEvents.length = 0; model.paused = true; resumeAt = 0; clearInput(false); syncUI();
+  }
+  function resume() {
+    focusGame(); clearInput(false); resumeAt = performance.now() + 3000;
+    $('pause-panel').hidden = true; $('countdown').hidden = false;
+  }
+  function jump() { model.jump(); sound.consume(model.soundEvents.splice(0), model); }
+  function grab() { model.grab(); sound.consume(model.soundEvents.splice(0), model); }
+
+  $('start-button').addEventListener('click', startWithName);
+  $('tutorial-button').addEventListener('click', () => activate(() => model.startTutorial()));
+  $('lesson-title-button').addEventListener('click', () => activate(() => model.title()));
+  $('restart-button').addEventListener('click', startWithName);
+  $('back-button').addEventListener('click', () => activate(() => model.title()));
+  $('home-link').addEventListener('click', e => { e.preventDefault(); activate(() => model.title()); });
+  $('next-button').addEventListener('click', () => {
+    if (model.mode === 'tutorial' && model.tutorial.done && model.tutorial.step === LESSONS.length - 1) startWithName();
+    else activate(() => model.nextLesson());
+  });
+  $('pause-button').addEventListener('click', pause);
+  $('resume-button').addEventListener('click', resume);
+  $('skip-checkbox').checked = storage.get('skipTutorial', 'false') === 'true';
+  $('skip-checkbox').addEventListener('change', () => {
+    storage.set('skipTutorial', $('skip-checkbox').checked);
+    $('skip-button').disabled = !$('skip-checkbox').checked;
+  });
+  $('skip-button').addEventListener('click', () => { if ($('skip-checkbox').checked) startWithName(); });
+  function syncSoundSettings() {
+    $('sound-button').textContent = '効果音：' + (sound.enabled ? 'オン' : 'オフ');
+    $('sound-button').setAttribute('aria-pressed', String(sound.enabled));
+    $('sound-toggle').checked = sound.enabled;
+    $('sound-volume').value = String(Math.round(sound.volume * 100));
+    $('sound-volume-value').textContent = Math.round(sound.volume * 100) + '％';
+    $('bgm-toggle').checked=music.enabled;
+    $('bgm-volume').value=String(Math.round(music.volume*100));$('bgm-volume-value').textContent=Math.round(music.volume*100)+'％';
+    $('master-volume').value=String(Math.round(sound.masterVolume*100));$('master-volume-value').textContent=Math.round(sound.masterVolume*100)+'％';
+    $('sound-status').textContent=sound.error || music.error || (sound.masterVolume===0?'マスター音量が0％です。':sound.enabled&&sound.volume===0?'効果音の音量が0％です。':music.enabled&&music.volume===0?'BGM音量が0％です。':sound.context&&sound.context.state!=='running'?'音声は一時停止中です。音声を再開できます。':sound.context?.state==='running'?'音声を再生できます。BGMと効果音は個別に調整できます。':'最初のボタン操作後に音声が始まります。');
+  }
+  $('sound-button').addEventListener('click', () => {
+    sound.setEnabled(!sound.enabled); sound.unlock(); sound.play('ui', { confirmation: sound.enabled }); syncSoundSettings(); focusGame();
+  });
+  document.querySelectorAll('.settings-open').forEach(button => button.addEventListener('click', () => { pause(); syncSoundSettings(); $('settings-dialog').showModal(); }));
+  $('settings-close').addEventListener('click', () => $('settings-dialog').close());
+  $('settings-dialog').addEventListener('close', focusGame);
+  $('sound-toggle').addEventListener('change', () => {
+    sound.setEnabled($('sound-toggle').checked); sound.unlock(); sound.play('ui', { confirmation: sound.enabled }); syncSoundSettings();
+  });
+  $('sound-volume').addEventListener('input', () => { sound.setVolume(Number($('sound-volume').value) / 100); syncSoundSettings(); });
+  $('sound-volume').addEventListener('change', () => { sound.unlock(); sound.play('ui'); });
+  $('bgm-toggle').addEventListener('change',()=>{music.setEnabled($('bgm-toggle').checked);sound.unlock();sound.play('ui',{confirmation:music.enabled});syncSoundSettings();});
+  $('bgm-volume').addEventListener('input',()=>{music.setVolume(Number($('bgm-volume').value)/100);syncSoundSettings();});
+  $('master-volume').addEventListener('input',()=>{sound.setMasterVolume(Number($('master-volume').value)/100);syncSoundSettings();});
+  for(const id of ['bgm-volume','master-volume'])$(id).addEventListener('change',()=>{sound.unlock();sound.play('ui');});
+  $('audio-resume').addEventListener('click',()=>{music.error='';sound.unlock().then(()=>{sound.play('ui',{confirmation:true});syncSoundSettings();});});
+  // Trusted pointer/keyboard gestures also unlock audio on Safari and mobile browsers.
+  for (const event of ['pointerdown', 'keydown', 'click']) document.addEventListener(event, e => {
+    if (e.isTrusted && !e.repeat) sound.unlock();
+  }, true);
+  document.addEventListener('click', e => {
+    if (e.target.closest('#start-button,#restart-button,.settings-open,.ranking-open')) sound.play('ui');
+  }, true);
+  sound.onStateChange = syncSoundSettings;
+  syncSoundSettings();
+  $('sound-button').addEventListener('pointerdown', e => e.preventDefault());
+  $('effects-button').addEventListener('pointerdown', e => e.preventDefault());
+  $('effects-button').addEventListener('click', () => {
+    reducedEffects = !reducedEffects; storage.set('reducedEffects', reducedEffects); focusGame(); syncUI();
+  });
+  game.addEventListener('pointerdown', e => {
+    if (!e.target.closest('button, input, label')) focusGame();
+  });
+  const relevantKeys = new Set(['ArrowDown', 'ShiftLeft', 'ShiftRight', 'KeyS', 'Space', 'KeyE', 'Enter', 'Escape']);
+  window.addEventListener('keydown', e => {
+    if (!game.contains(document.activeElement) || !relevantKeys.has(e.code)) return;
+    if (e.target.matches('input, button') && (e.code === 'Space' || e.code === 'Enter')) return;
+    e.preventDefault();
+    if (e.repeat) return;
+    held.add(e.code);
+    if (e.code === 'Escape') { if (model.paused && !resumeAt) resume(); else pause(); return; }
+    if (model.paused) return;
+    if (e.code === 'Space') jump();
+    if (e.code === 'KeyE') grab();
+    if (e.code === 'Enter' && model.mode === 'gameover') startWithName();
+  });
+  window.addEventListener('keyup', e => {
+    held.delete(e.code);
+    if (game.contains(document.activeElement) && relevantKeys.has(e.code) && !e.target.matches('input, button')) e.preventDefault();
+  });
+  window.addEventListener('blur', pause);
+  document.addEventListener('visibilitychange', () => {
+    lastTime = null; lastDraw = -Infinity; quality.reset();
+    if (document.hidden) { pause(); sound.stopAll(); sound.music?.pause(); sound.context?.suspend().catch(() => {}); cancelAnimationFrame(frameID); frameID = 0; }
+    else { if (!frameID) frameID = requestAnimationFrame(frame); syncSoundSettings(); }
+  });
+  game.addEventListener('focusout', e => {
+    if (!game.contains(e.relatedTarget) && !$('tutorial-panel').contains(e.relatedTarget) && !$('tutorial-actions').contains(e.relatedTarget) && ['playing', 'tutorial'].includes(model.mode)) pause();
+  });
+  function bindTouch(id, action, release) {
+    const button = $(id);
+    button.addEventListener('pointerdown', e => { e.preventDefault(); focusGame(); button.setPointerCapture(e.pointerId); action(); });
+    button.addEventListener('pointerup', () => release?.());
+    button.addEventListener('pointercancel', () => release?.());
+    button.addEventListener('lostpointercapture', () => release?.());
+  }
+  bindTouch('touch-crouch', () => { touchCrouch = true; }, () => { touchCrouch = false; });
+  bindTouch('touch-straddle', () => { touchStraddle = true; }, () => { touchStraddle = false; });
+  bindTouch('touch-jump', jump); bindTouch('touch-grab', grab);
+
+  function updateDistanceBest() {
+    const text = '距離自己ベスト ' + ranking.best.toLocaleString('ja-JP') + ' m　高身長への理解度：' + Run188Ranking.understanding(ranking.best) + '％';
+    document.querySelectorAll('.distance-best').forEach(el => { el.textContent = text; });
+  }
+  function startWithName() {
+    if (!ranking.name && !nicknameAsked) {
+      nicknameStart = true; openRanking(false); $('nickname-skip').hidden = false; $('nickname').focus(); return;
+    }
+    activate(() => model.start());
+  }
+  async function sendRecord() {
+    const version = resultVersion;
+    $('save-status').textContent = 'オンラインに記録を送信中…';
+    $('ranking-send').disabled = true;
+    try {
+      const result = await ranking.send();
+      const text = ranking.pending !== null ? '前の記録の送信が完了しました。最新の記録は未送信です。60秒後に再送信してください。' : result.changed ? 'オンラインに自己ベストを保存しました。' : 'オンラインの自己ベストを確認しました。';
+      if (version === resultVersion) $('save-status').textContent = text;
+      $('ranking-status').textContent = text; updateDistanceBest();
+    } catch (e) {
+      const text = 'オンライン保存を確認できませんでした。' + onlineError(e) + ' 記録はこの端末に残っています。';
+      if (version === resultVersion) $('save-status').textContent = text;
+      $('ranking-status').textContent = text;
+    } finally { $('ranking-send').disabled = ranking.busy; }
+  }
+  function onlineError(e) {
+    if (e.code === 'permission-denied' || e.code === 'firestore/permission-denied') return '送信間隔（60秒）・アクセス設定を確認し、後で再送信してください。';
+    if (e.code?.includes('auth/')) return '匿名認証またはブラウザの接続を確認してください。';
+    return e.message || '通信に失敗しました。時間をおいて再試行してください。';
+  }
+  async function refreshRanking() {
+    const request = ++rankingRequest;
+    $('ranking-rows').replaceChildren();
+    $('ranking-status').textContent = 'ランキングを読み込み中…'; $('ranking-refresh').disabled = true;
+    try {
+      const rows = await ranking.top();
+      if (request !== rankingRequest) return;
+      rows.forEach((row, index) => {
+        const tr = document.createElement('tr');
+        if (index < 3) tr.classList.add('rank-' + (index + 1));
+        if (row.isSelf) tr.classList.add('ranking-self');
+        for (const value of [index + 1, row.nickname, row.distance.toLocaleString('ja-JP') + ' m', Run188Ranking.understanding(row.distance) + '％']) {
+          const td = document.createElement('td'); td.textContent = value; tr.append(td);
+        }
+        if (row.isSelf) { const badge = document.createElement('small'); badge.className = 'self-badge'; badge.textContent = 'あなた'; tr.children[1].append(badge); }
+        $('ranking-rows').append(tr);
+      });
+      $('ranking-status').textContent = rows.length ? '距離順のランキングです。' : 'まだ記録がありません。最初の記録を目指そう。'; updateDistanceBest();
+    } catch (e) { if (request === rankingRequest) $('ranking-status').textContent = onlineError(e); }
+    finally { if (request === rankingRequest) $('ranking-refresh').disabled = false; }
+  }
+  let rankingRequest = 0;
+  function openRanking(load = true) {
+    pause(); $('nickname').value = ranking.name; $('nickname-error').textContent = ''; updateDistanceBest();
+    $('nickname-skip').hidden = !nicknameStart;
+    $('ranking-send').hidden = !ranking.enabled || ranking.pending === null;
+    $('ranking-refresh').hidden = !ranking.enabled;
+    if (!$('ranking-dialog').open) $('ranking-dialog').showModal();
+    if (load && ranking.enabled) refreshRanking();
+    else $('ranking-status').textContent = ranking.enabled ? '名前を決めて走り出そう。' : 'オンラインランキングは未設定です。ゲームとこの端末の記録は利用できます。';
+  }
+  document.querySelectorAll('.ranking-open').forEach(button => button.addEventListener('click', () => openRanking()));
+  $('ranking-close').addEventListener('click', () => $('ranking-dialog').close());
+  $('ranking-dialog').addEventListener('close', () => {
+    ++rankingRequest; $('ranking-refresh').disabled = false;
+    if (nicknameStart) { nicknameStart = false; nicknameAsked = true; storage.set('nicknameAsked', true); activate(() => model.start()); }
+    else focusGame();
+  });
+  $('nickname-skip').addEventListener('click', () => $('ranking-dialog').close());
+  $('nickname-form').addEventListener('submit', e => {
+    e.preventDefault();
+    try {
+      ranking.setName($('nickname').value); nicknameAsked = true; storage.set('nicknameAsked', true); $('nickname-error').textContent = '名前を保存しました。';
+      // A renamed player keeps the same anonymous account and its existing best.
+      if (ranking.best > 0) ranking.pending = Math.max(ranking.pending || 0, ranking.best);
+      if (nicknameStart) $('ranking-dialog').close();
+      else if (ranking.enabled && ranking.pending !== null) sendRecord();
+    } catch (error) { $('nickname-error').textContent = error.message; }
+  });
+  $('ranking-refresh').addEventListener('click', refreshRanking);
+  $('ranking-send').addEventListener('click', sendRecord);
+  updateDistanceBest();
+
+  function syncUI() {
+    const active = ['playing', 'tutorial'].includes(model.mode);
+    if (uiMode !== model.mode) {
+      if (model.mode === 'gameover') {
+        resultVersion++; $('save-status').textContent = '記録が範囲外のため、オンラインに送信しませんでした。';
+        best = Math.max(best, model.score); storage.set('best', best);
+        $('over-reason').textContent = model.reason;
+        $('final-score').textContent = model.score.toLocaleString('ja-JP');
+        $('final-distance').textContent = Math.floor(model.distance).toLocaleString('ja-JP') + ' m';
+        $('final-items').textContent = model.items + ' 個';
+        const percent = Run188Ranking.understanding(model.distance);
+        $('final-understanding').textContent = '高身長への理解度：' + percent + '％';
+        $('understanding-bar').style.width = percent + '%';
+        $('understanding-track').setAttribute('aria-valuenow', String(percent));
+        if (ranking.record(model.distance, model.elapsed)) {
+          $('save-status').textContent = 'この端末に記録しました。';
+          updateDistanceBest();
+          if (ranking.enabled && ranking.name) sendRecord();
+        }
+
+      }
+      $('title-panel').hidden = model.mode !== 'title';
+      $('over-panel').hidden = model.mode !== 'gameover';
+      $('tutorial-panel').hidden = model.mode !== 'tutorial';
+      $('tutorial-actions').hidden = model.mode !== 'tutorial';
+      $('play-hint').hidden = model.mode === 'tutorial';
+      game.classList.toggle('tutorial-mode', model.mode === 'tutorial');
+      document.querySelector('.shell').classList.toggle('tutorial-layout', model.mode === 'tutorial');
+      game.dataset.mode = model.mode;
+      $('play-layout').dataset.mode = model.mode;
+      $('pause-button').hidden = !active;
+      $('best-score').textContent = best.toLocaleString('ja-JP');
+      $('mode-label').textContent = model.mode === 'tutorial' ? '練習中' : model.mode === 'playing' ? '街を、走り抜けろ。' : '街を走る、あなたの物語。';
+      uiMode = model.mode;
+    }
+    $('pause-panel').hidden = !model.paused || Boolean(resumeAt) || !active;
+    $('countdown').hidden = !resumeAt;
+    $('score').textContent = String(model.score).padStart(6, '0');
+    $('distance').textContent = Math.floor(model.distance).toLocaleString('ja-JP');
+    $('items').textContent = String(model.items);
+    const strain = model.strain;
+    $('strain-value').textContent = Math.floor(strain) + '%';
+    $('strain-bar').style.width = strain + '%';
+    $('strain-bar').style.background = strain < 60 ? '#86df9e' : strain < 80 ? '#f2d66d' : strain < 95 ? '#f1a259' : '#fa7777';
+    $('strain-track').setAttribute('aria-valuenow', String(Math.floor(strain)));
+    game.dataset.strainLevel = strain < 60 ? 'low' : strain < 80 ? 'medium' : strain < 95 ? 'high' : 'critical';
+    const warning = active && strain >= 95 ? '体への負荷が限界に近づいています' : active && strain >= 80 ? '体への負荷が高くなっています' : '';
+    $('strain-warning').hidden = !warning;
+    if ($('strain-warning').textContent !== warning) $('strain-warning').textContent = warning;
+    game.classList.toggle('reduced-effects', reducedEffects);
+    document.body.classList.toggle('reduced-effects', reducedEffects);
+    $('effects-button').setAttribute('aria-pressed', String(reducedEffects));
+    $('effects-button').textContent = '演出：' + (reducedEffects ? '弱め' : '通常');
+    if (active && !model.paused && strain >= 95 && !reducedEffects && sound.enabled && model.elapsed - lastWarningAt >= 1.5) {
+      sound.play('alarm'); lastWarningAt = model.elapsed;
+    }
+    const event = model.nextEvent;
+    $('next-event').hidden = !active || !event;
+    const name = event ? '次の' + (event.kind === 'item' ? 'アイテム' : '障害物') + '：' + event.name : '';
+    if ($('next-event').textContent !== name) $('next-event').textContent = name;
+    if (model.mode === 'tutorial') {
+      const t = model.tutorial;
+      if (lessonIndex !== t.step) {
+        $('lesson-step').textContent = (t.step + 1) + ' / ' + LESSONS.length;
+        $('lesson-title').textContent = LESSONS[t.step][0]; $('lesson-text').textContent = LESSONS[t.step][1]; lessonIndex = t.step;
+      }
+      $('next-button').disabled = !t.done;
+      $('next-button').textContent = t.step === LESSONS.length - 1 ? '走り出す →' : '次へ →';
+      let progress = t.feedback;
+      if (t.step === 0) progress = ['crouch', 'straddle', 'jump', 'grab'].map((k, i) => (t.actions.has(k) ? '✓ ' : '○ ') + ['しゃがむ', 'またぐ', 'ジャンプ', '手を伸ばす'][i]).join('　');
+      if (t.step === 7) progress = t.recovered ? 'Spaceでジャンプの負荷も確認しましょう。' : t.peak ? 'キーを離して、ゲージの回復を見ましょう。' : 'しゃがんで、ゲージの増加を見ましょう。';
+      if (t.step === 8) progress = '通過・取得 ' + t.passed + ' / 5';
+      $('lesson-feedback').textContent = t.done ? 'できました！次へ進みましょう。' : progress;
+      $('skip-button').disabled = !$('skip-checkbox').checked;
+    }
+    sound.consume(model.soundEvents.splice(0), model);
+    music.update(model,document.hidden);
+    if (model.mode === 'playing') $('mode-label').textContent = model.area.name + '　・　速度 ' + (model.speed / CONFIG.INITIAL_SPEED).toFixed(1) + '倍';
+  }
+
+  // Perspective uses the same physical clearance as collision detection.
+  // At z=0 the runner's shoe-inclusive 190cm head aligns with the opening's 190cm plane.
+  function project(z) {
+    const scale = 1 / (1 + Math.max(-5, z) / 23);
+    return { s: scale, y: HORIZON + (GROUND - HORIZON) * scale };
+  }
+  function rect(x, y, w, h, fill, stroke) {
+    ctx.fillStyle = fill; ctx.fillRect(x, y, w, h);
+    if (stroke) { ctx.strokeStyle = stroke; ctx.strokeRect(x, y, w, h); }
+  }
+  function line(points, color, width = 1) {
+    ctx.beginPath(); points.forEach(([x, y], i) => i ? ctx.lineTo(x, y) : ctx.moveTo(x, y));
+    ctx.strokeStyle = color; ctx.lineWidth = width; ctx.stroke();
+  }
+  function poly(points, fill, stroke) {
+    ctx.beginPath(); points.forEach(([x, y], i) => i ? ctx.lineTo(x, y) : ctx.moveTo(x, y)); ctx.closePath();
+    ctx.fillStyle = fill; ctx.fill(); if (stroke) { ctx.strokeStyle = stroke; ctx.stroke(); }
+  }
+  function circle(x, y, r, fill, stroke) {
+    ctx.beginPath(); ctx.arc(x, y, Math.max(0.1, r), 0, Math.PI * 2); ctx.fillStyle = fill; ctx.fill();
+    if (stroke) { ctx.strokeStyle = stroke; ctx.stroke(); }
+  }
+  function label(text, x, y, size, color = '#dde8ec', align = 'center') {
+    ctx.font = `600 ${size}px "Yu Gothic", sans-serif`; ctx.textAlign = align; ctx.fillStyle = color; ctx.fillText(text, x, y);
+  }
+  const skyCache = new Map();
+  function skyLayer(area) {
+    if (skyCache.has(area.id)) return skyCache.get(area.id);
+    const surface = document.createElement('canvas'); surface.width = Math.ceil(W * renderScale); surface.height = Math.ceil((HORIZON + 70) * renderScale);
+    const mainContext = ctx; ctx = surface.getContext('2d'); ctx.setTransform(renderScale, 0, 0, renderScale, 0, 0);
+    try {
+    const sky = ctx.createLinearGradient(0, 0, 0, HORIZON + 70);
+    sky.addColorStop(0, '#273e52'); sky.addColorStop(0.55, area.sky); sky.addColorStop(1, '#d3ceae');
+    rect(0, 0, W, H, sky);
+    const sun = ctx.createRadialGradient(730, 200, 4, 730, 200, 150);
+    sun.addColorStop(0, '#fff3bb98'); sun.addColorStop(1, '#fff3bb00'); rect(540, 15, 370, 355, sun);
+    circle(730, 200, 32, '#efdec192');
+    // Layered original city skyline, rooftop tanks and lit windows.
+    for (let layer = 0; layer < (quality.preset.detail === 0 ? 1 : 2); layer++) {
+      for (let i = 0; i < 17; i++) {
+        const x = i * 66 - 18 + layer * 26, height = 62 + (i * 43 % 119) + layer * 18;
+        const y = HORIZON - height;
+        rect(x, y, 55, height + 10, layer ? '#4b565b' : '#8c9d9d');
+        poly([[x+55,y],[x+66,y-7],[x+66,HORIZON+10],[x+55,HORIZON+10]],layer?'#303f4a':'#6d828a');
+        poly([[x,y],[x+11,y-7],[x+66,y-7],[x+55,y]],layer?'#89958e':'#b1bdb0');
+        rect(x + 7, y - 5, 39, 5, layer ? '#405564' : '#6b8285');
+        for (let row = 0; row < height / 17 - 1; row++) for (let col = 0; col < 3; col++) {
+          rect(x + 9 + col * 13, y + 12 + row * 17, 6, 7, (row + col + i) % 5 === 0 ? '#d0c59985' : '#89adb32a');
+        }
+        if (i % 4 === 0) { rect(x + 17, y - 22, 21, 17, '#617980'); line([[x + 27, y - 22], [x + 27, y - 37]], '#637e84', 2); }
+      }
+    }
+    if (['school', 'station', 'bus', 'store', 'home'].includes(area.id)) {
+      rect(0, 0, W, HORIZON, area.sky);
+      poly([[0, 0], [W, 0], [580, HORIZON - 85], [380, HORIZON - 85]], '#344856');
+      for (let i = 0; i < 6; i++) { const y = 80 + i * 37; line([[100 + i * 55, y], [860 - i * 55, y]], '#cad1bb', 4 - i * .4); }
+      if (area.id === 'bus') { rect(386, 258, 188, 86, '#749798'); rect(394, 266, 172, 70, '#a0b8ad'); label('路線バス', 480, 298, 14, '#34545b'); }
+      if (area.id === 'home') { rect(363, 242, 234, 102, '#8b8167'); rect(386, 260, 188, 84, '#c3c3a2'); }
+    }
+    } finally { ctx = mainContext; }
+    skyCache.set(area.id, surface); return surface;
+  }
+  function sceneryAt(distance) {
+    const lookup = model.mode === 'tutorial' ? Run188.areaAt : d => model.areaAt(d);
+    const block = Math.floor(Math.max(0, distance) / CONFIG.AREA_LENGTH);
+    const current = lookup(distance), previous = block ? lookup(block * CONFIG.AREA_LENGTH - .01) : current;
+    const t = Math.min(1, (distance % CONFIG.AREA_LENGTH) / 40);
+    return { current, previous, mix: t * t * (3 - 2 * t) };
+  }
+  function mixColor(a, b, t) {
+    const n = parseInt(a.slice(1), 16), m = parseInt(b.slice(1), 16);
+    const channels = [16, 8, 0].map(shift => Math.round(((n >> shift) & 255) * (1-t) + ((m >> shift) & 255) * t));
+    return 'rgb(' + channels.join(',') + ')';
+  }
+  // A fixed 88cm arm reaches 252cm with a 14cm shoulder lift during overhead reach.
+  // Only direction changes; shoulder-to-elbow + elbow-to-hand is identical in every pose.
+  function armPose(shoulder, target, extension = 1) {
+    const length = 88 * CM, dx = target[0] - shoulder[0], dy = target[1] - shoulder[1];
+    const angle = Math.atan2(dy, dx), bend = (1 - extension) * .9 * (shoulder[0] < 0 ? -1 : 1);
+    const elbow = [shoulder[0] + Math.cos(angle - bend) * length * .5, shoulder[1] + Math.sin(angle - bend) * length * .5];
+    const hand = [elbow[0] + Math.cos(angle + bend) * length * .5, elbow[1] + Math.sin(angle + bend) * length * .5];
+    return { shoulder, elbow, hand, length };
+  }
+
+  function background() {
+    const travel = ['title', 'gameover'].includes(model.mode) ? ambientTime * 4 : model.distance;
+    const scene = sceneryAt(travel);
+    ctx.drawImage(skyLayer(scene.previous), 0, 0, W, HORIZON + 70);
+    if (scene.mix > 0) { ctx.globalAlpha = scene.mix; ctx.drawImage(skyLayer(scene.current), 0, 0, W, HORIZON + 70); ctx.globalAlpha = 1; }
+    // A continuous pavement grid, curbs and side structures move with travelled distance.
+    const floorColor = mixColor(scene.previous.floor, scene.current.floor, scene.mix);
+    poly([[CX - 45, HORIZON], [CX + 45, HORIZON], [W + 80, H], [-80, H]], floorColor);
+    if (!floorShade) { floorShade=ctx.createLinearGradient(0,HORIZON,0,H);floorShade.addColorStop(0,'#cdd0c599');floorShade.addColorStop(.4,'#bbc1b81a');floorShade.addColorStop(1,'#09132120'); }
+    rect(0,HORIZON,W,H-HORIZON,floorShade);
+    poly([[0,HORIZON],[CX-45,HORIZON],[25,H],[0,H]],'#77817b');
+    poly([[CX+45,HORIZON],[W,HORIZON],[W,H],[935,H]],'#95978a');
+    poly([[CX-45,HORIZON],[25,H],[39,H],[CX-43,HORIZON]],'#b6b9aa');
+    poly([[CX+45,HORIZON],[935,H],[921,H],[CX+43,HORIZON]],'#626d68');
+    line([[CX-43,HORIZON],[39,H]],'#d6d4bf',2);line([[CX+43,HORIZON],[921,H]],'#d6d4bf',2);
+    const firstLine = Math.floor((travel - 5) / 7);
+    for (let i=firstLine;i<firstLine+25;i++) {
+      const z=i*7-travel,p=project(z);if(p.y>H+30)continue;
+      line([[CX-295*p.s,p.y],[CX+295*p.s,p.y]],'#c7d4c616',1+p.s*.3);
+      for(const side of [-1,1]) {
+        const q=project(z+2.4);
+        poly([[CX+side*271*p.s,p.y],[CX+side*275*p.s,p.y],[CX+side*275*q.s,q.y],[CX+side*271*q.s,q.y]],'#dedccc6b');
+        if(quality.preset.detail>0)line([[CX+side*306*p.s,p.y-3],[CX+side*480*p.s,p.y-3]],'#253b444a',p.s);
+      }
+      // Deterministic world-space flecks, with perspective: no random flicker or texture wrap.
+      if(quality.preset.detail>0)for(let j=0;j<7;j++){
+        const n=Math.abs((i*47+j*67)%239),x=(n-119)*2*p.s;
+        rect(CX+x,p.y-(n%4)*p.s,Math.max(.3,(1+n%3)*p.s),Math.max(.3,p.s*.5),'#ced0be17');
+      }
+    }
+    const firstFixture = Math.floor((travel - 8) / 15);
+    for (let i=firstFixture+quality.preset.fixtures-1;i>=firstFixture;i--) {
+      const z=i*15-travel;if(z < -8)continue;
+      const area=model.mode==='tutorial'?Run188.areaAt(Math.max(0,i*15)):model.areaAt(Math.max(0,i*15));
+      const {s,y}=project(z),x=CX+(i%2?-405:405)*s;
+      if(x+170*s<0||x-170*s>W)continue;
+      ctx.save();ctx.translate(x,y);ctx.scale(s,s);scenery.fixture(ctx,area.id,i);ctx.restore();
+    }
+    if (model.mode === 'playing' && !reducedEffects && quality.preset.detail > 0) {
+      ctx.globalAlpha = 0.1 + (model.speed / CONFIG.MAX_SPEED) * 0.12;
+      for (let i = 0; i < 15; i++) {
+        const p = (ambientTime * (2 + i % 3) + i * 0.13) % 1;
+        const side = i % 2 ? -1 : 1;
+        line([[CX + side * (100 + p * 390), HORIZON + p * 290], [CX + side * (115 + p * 430), HORIZON + p * 330]], '#d9e8d5', 1);
+      }
+      ctx.globalAlpha = 1;
+    }
+    if (!hazeGradient) {
+      hazeGradient = ctx.createLinearGradient(0, HORIZON - 35, 0, HORIZON + 55);
+      hazeGradient.addColorStop(0, '#c6caae00'); hazeGradient.addColorStop(.5, '#c6caae40'); hazeGradient.addColorStop(1, '#c6caae00');
+    }
+    const haze = hazeGradient;
+    rect(0, HORIZON - 35, W, 90, haze);
+  }
+
+  function doorBase(top, frame, wall, depth = 28) {
+    // The open aperture is -230..230 wide and top..0 high in world-projected pixels.
+    rect(-335, -370, 105, 370, wall); rect(230, -370, 105, 370, wall);
+    rect(-335, -370, 670, 370 + top, wall);
+    rect(-243, top - 14, 486, 14, frame); rect(-243, top, 13, -top, frame); rect(230, top, 13, -top, frame);
+    poly([[-230, top], [-210, top - depth], [-210, -depth], [-230, 0]], '#142a3559');
+    poly([[230, top], [210, top - depth], [210, -depth], [230, 0]], '#13273377');
+    line([[-230, 0], [230, 0]], '#d0d3bd', 4);
+    line([[-230, top], [230, top]], '#e2dfc399', 2);
+    poly([[-230,top],[-210,top-depth],[210,top-depth],[230,top]],'#1a273660');
+    rect(-243,top,4,-top,'#e9e1c34d');rect(239,top,4,-top,'#11192366');
+    if(quality.preset.shadows){poly([[-335,0],[-230,0],[-207,9],[-302,9]],'#18232b45');poly([[230,0],[335,0],[363,9],[257,9]],'#18232b45');}
+  }
+  const doorDrawers = {};
+  Object.assign(doorDrawers, {
+    strap(e, top) {
+      rect(-330, -395, 660, 25, '#8aa1a3'); line([[-315, -375], [315, -375]], '#d8ddce', 8);
+      for (const x of [-130, 0, 130]) {
+        rect(x - 7, -375, 14, top + 375 - 42, '#c1ccbe');
+        ctx.beginPath(); ctx.ellipse(x, top - 22, 24, 18.5, 0, 0, Math.PI * 2); ctx.strokeStyle = '#e6e8d3'; ctx.lineWidth = 7; ctx.stroke();
+      }
+      for (const x of [-310, 245]) { rect(x, -255, 65, 150, '#86a5a5', '#bdd0c2'); rect(x, -82, 65, 54, '#466c79'); }
+    },
+    rack(e, top) {
+      rect(-340, -373, 680, 17, '#7c949a');
+      line([[-315, top - 30], [315, top - 30]], '#a8bfc0', 8);
+      for (let x = -310; x <= 310; x += 27) line([[x, top - 27], [x + 10, top - 9]], '#d0dacb', 3);
+      line([[-315, top - 7], [315, top - 7]], '#dbe4d2', 14);
+      line([[-315, top - 7], [-315, -370]], '#91a9b0', 8); line([[315, top - 7], [315, -370]], '#91a9b0', 8);
+      rect(-202, top - 61, 99, 30, '#977c63', '#d3baa1'); rect(97, top - 57, 66, 26, '#5d7c83');
+    },
+    bus(e, top) {
+      doorBase(top, '#b9c8c1', '#84999d', 35); rect(-330, -369, 660, 369 + top, '#66818e');
+      for (const x of [-315, 250]) { rect(x, top + 40, 64, 92, '#a6c1b7'); rect(x, -97, 67, 65, '#3c778c'); rect(x - 6, -36, 78, 16, '#365b73'); }
+      line([[-274, -300], [-274, -20]], '#e0c784', 8); line([[279, -300], [279, -20]], '#e0c784', 8);
+      rect(-90, top - 43, 180, 25, '#a0b5ad'); label('後方座席', 0, top - 24, 14, '#415f64');
+    },
+    club(e, top) {
+      doorBase(top, '#8e7459', '#b0a68c');
+      for (const x of [-329, 248]) { rect(x, top + 6, 80, -top - 13, '#917b5c'); rect(x + 8, top + 22, 64, 58, '#c1c4a0', '#6c715e'); line([[x + 42, top + 23], [x + 42, top + 80]], '#6c715e', 3); rect(x + 20, -140, 5, 27, '#d3c2a0'); }
+      rect(-319, -69, 42, 47, '#6f9a82'); circle(291, -30, 22, '#bd9866'); label('部室', 0, top - 34, 19, '#e4dcc4');
+    },
+    tatami(e, top) {
+      doorBase(top, '#8f7958', '#b8b291');
+      for (const x of [-327, 247]) { rect(x, top + 8, 80, -top - 17, '#ded2a9'); for (let y = top + 45; y < -10; y += 43) line([[x, y], [x + 80, y]], '#9e8866', 4); line([[x + 40, top + 8], [x + 40, -10]], '#9e8866', 4); }
+      poly([[-235, 0], [235, 0], [270, 28], [-270, 28]], '#aab08a'); line([[-30, 0], [-30, 27]], '#647556', 5);
+    },
+    classroom(e, top) {
+      doorBase(top, '#b0bdb4', '#a3aea0');
+      for (const x of [-327, 248]) { rect(x, top + 7, 79, -top - 13, e.low ? '#9e8a6d' : '#c1c9ba'); rect(x + 8, top + 28, 64, 103, '#86a8a5', '#dfe2c7'); line([[x + 40, top + 28], [x + 40, top + 131]], '#ced8bf', 3); rect(x + 18, -128, 6, 29, '#687d7d'); }
+      rect(-97, top - 54, 194, 28, '#45696e'); label(e.low ? '旧校舎' : '教室', 0, top - 34, 16, '#e1e3c5');
+    },
+    'auto-door'(e, top) {
+      doorBase(top, '#c4d6cb', '#6c9794');
+      for (const x of [-329, 248]) { rect(x, top + 7, 81, -top - 14, '#a1c3ba99', '#e5ebcf'); rect(x, -159, 81, 11, '#dfd89f'); }
+      rect(-328, top - 43, 656, 26, '#b8d4a7'); line([[-328, top - 17], [328, top - 17]], '#609b9a', 9); label('街のコンビニ', 0, top - 23, 17, '#3c6762'); rect(-26, top - 15, 52, 8, '#445d62');
+    },
+    supermarket(e, top) {
+      doorDrawers['auto-door'](e, top); rect(-328, top - 61, 656, 35, '#bd965e'); label('スーパーマーケット', 0, top - 36, 20, '#f0e7c7');
+      for (const x of [-288, 276]) { rect(x - 29, -77, 58, 45, '#a4bbb0', '#e2d9bc'); line([[x - 24, -69], [x + 24, -69]], '#647f7c', 3); circle(x - 19, -23, 8, '#506571'); circle(x + 19, -23, 8, '#506571'); }
+    },
+    gate() {
+      for (const side of [-1, 1]) { const x = side < 0 ? -158 : 72; rect(x, -155, 86, 155, '#69878b', '#b9cec3'); poly([[x, -155], [x + 86, -155], [x + 99, -172], [x + 13, -172]], '#bed0be'); rect(x + 26, -176, 36, 8, '#46746e'); rect(x + 9, -109, 64, 36, '#304d5c'); circle(x + 39, -91, 7, '#95bea6'); }
+      line([[-72, -8], [72, -8]], '#c0d3ac', 3);
+    }
+  });
+  function coneShape(h, width) {
+    poly([[-width/2,-7],[-width*.43,-12],[width*.43,-12],[width/2,-7],[width/2,0],[-width/2,0]],'#695349');
+    poly([[-width*.4,-7],[-5,-h],[5,-h],[width*.4,-7]],'#e88943');
+    poly([[1,-h],[5,-h],[width*.4,-7],[width*.13,-7]],'#9a503f');
+    poly([[-width*.25,-9],[-4,-h+5],[-1,-h+5],[-width*.12,-9]],'#ffbd735e');
+    poly([[-width * .24, -h * .45], [-width * .15, -h * .67], [width * .15, -h * .67], [width * .24, -h * .45]], '#efe9d5');
+  }
+  function groundObstacle(e) {
+    const h = e.height * CM, width = e.width * CM;
+    // Shallow side extrusion stays inside the physical width and height.
+    if(['suitcase','vault','divider','balance','hurdle','play-base'].includes(e.style)) {
+      poly([[width*.36,-h],[width*.5,-h+8],[width*.5,-8],[width*.36,0]],'#273a476b');
+      poly([[-width*.5,-h+8],[-width*.36,-h],[width*.36,-h],[width*.5,-h+8]],'#ece4c77a');
+    }
+    ctx.fillStyle = '#132c384d'; ctx.beginPath(); ctx.ellipse(0, 2, width * .6, 10, 0, 0, Math.PI * 2); ctx.fill();
+    if (e.style === 'suitcase') {
+      rect(-width * .22, -h, width * .44, 7, '#495c64');
+      rect(-width/2,-h+7,width*.85,h-19,'#936b5f','#dbbda0');
+      poly([[width*.35,-h+7],[width*.5,-h+15],[width*.5,-12],[width*.35,-12]],'#5e4b49');
+      line([[-width*.17,-h+5],[-width*.17,-h+1],[width*.17,-h+1],[width*.17,-h+5]],'#d5cfc0',4);
+      for (let i = 1; i < 5; i++) line([[-width / 2 + i * width / 5, -h + 17], [-width / 2 + i * width / 5, -19]], '#7e675f', 3);
+      rect(-12, -h + 19, 24, 5, '#dbc6a5');
+      for (const x of [-width * .32, width * .32]) circle(x, -6, 6, '#344d56');
+    } else if (e.style === 'double-cone') {
+      for (const x of [-width * .27, width * .27]) { ctx.save(); ctx.translate(x, 0); coneShape(h, width * .42); ctx.restore(); }
+    } else if (e.style === 'vault') {
+      for (let row = 0; row < 5; row++) {
+        const y = -h + row * h / 5, upper = width * (.72 + .28 * row / 5) / 2, lower = width * (.72 + .28 * (row + 1) / 5) / 2;
+        poly([[-upper, y], [upper, y], [lower, y + h / 5], [-lower, y + h / 5]], row % 2 ? '#b78c5c' : '#c6a16b', '#7f7058');
+        for (const x of [-width * .16, width * .16]) rect(x - 4, y + h / 10 - 2, 8, 4, '#745e4e');
+      }
+      rect(-width*.36,-h,width*.72,h/10,'#9cb5b2');
+      poly([[width*.28,-h],[width*.36,-h],[width*.5,0],[width*.38,0]],'#47372932');
+      if(quality.preset.detail>0)for(let row=0;row<5;row++)for(let grain=0;grain<2;grain++)line([[-width*.31,-h+row*h/5+11+grain*4],[width*.31,-h+row*h/5+12+grain*4]],'#6c563640',1);
+    } else if (['pole', 'park-pole'].includes(e.style)) {
+      ctx.beginPath(); ctx.ellipse(0, -5, 27, 8, 0, 0, Math.PI * 2); ctx.fillStyle = '#4e5b56'; ctx.fill();
+      rect(-width/2,-h,width,h-5,e.style==='pole'?'#db874f':'#a48960');
+      rect(width*.18,-h+7,width*.32,h-12,'#422c353f');rect(-width*.3,-h+9,width*.12,h-15,'#ffe8b74d');
+      ctx.beginPath(); ctx.ellipse(0, -h + 7, width / 2, 7, 0, 0, Math.PI * 2); ctx.fillStyle = e.style === 'pole' ? '#e89d63' : '#b1a17b'; ctx.fill();
+      for (const ratio of [.2, .46]) rect(-width / 2, -h + h * ratio, width, 10, '#e9e3c8');
+    } else if (e.style === 'cone') {
+      coneShape(h, width);
+    } else if (e.style === 'marker') {
+      poly([[-width / 2, -4], [-width / 4, -h], [width / 4, -h], [width / 2, -4]], '#d3b860'); circle(0, -h + 4, 3, '#6f8c7a');
+    } else if (e.style === 'divider') {
+      rect(-width / 2, -h, width, 15, '#bdb58c'); for (const x of [-width * .35, width * .35]) rect(x, -h + 15, 8, h - 15, '#819088');
+    } else if (['balance', 'hurdle', 'play-base'].includes(e.style)) {
+      if (e.style === 'play-base') { poly([[-width / 2, 0], [-width / 2 + 15, -h], [width / 2 - 15, -h], [width / 2, 0]], '#719b8c', '#a9c7ab'); rect(-width / 2 + 20, -h + 10, width - 40, 8, '#c1d0af'); }
+      else { rect(-width / 2, -h, width, 10, e.style === 'balance' ? '#b7a074' : '#ddd4a4'); for (const x of [-width * .43, width * .43]) { rect(x, -h + 10, 7, h - 10, '#859e8b'); rect(x - 15, -6, 35, 6, '#799084'); } }
+    } else {
+      ctx.save(); ctx.scale(width / ({ panda: 114, elephant: 137, turtle: 133, horse: 143 }[e.style] || 143), 1);
+      rect(-35, -9, 70, 9, '#728274');
+      const spring = []; for (let j = 0; j < 7; j++) spring.push([j % 2 ? 13 : -13, -12 - j * h * .025]); line(spring,'#314650',7);line(spring,'#c5d0c6',4);
+      if(quality.preset.detail>0)line([[-11,-13],[10,-17]],'#eef0cf',2);
+      if (e.style === 'panda') {
+        ctx.beginPath(); ctx.ellipse(-9, -h * .46, 44, h * .24, 0, 0, Math.PI * 2); ctx.fillStyle=material('#d8d9c7','#eeeddd','#99a39e'); ctx.fill();
+        circle(28, -h * .76, h * .20, '#e3e6d2'); circle(12, -h + 10, 10, '#30464c'); circle(42, -h + 10, 10, '#30464c');
+        circle(20, -h * .77, 9, '#33484c'); circle(39, -h * .77, 9, '#33484c'); circle(23, -h * .79, 2, '#f3f0d7'); circle(42, -h * .79, 2, '#f3f0d7'); circle(31, -h * .64, 5, '#33484c');
+        line([[-32, -h * .5], [-42, -h * .29]], '#33484c', 16); line([[15, -h * .47], [16, -h * .25]], '#33484c', 16);
+      } else if (e.style === 'elephant') {
+        ctx.beginPath(); ctx.ellipse(-13, -h * .5, 51, h * .28, 0, 0, Math.PI * 2); ctx.fillStyle=material('#9eb2b0','#bfd1c7','#607a80'); ctx.fill();
+        circle(33, -h * .72, h * .26, '#aabbb5'); circle(11, -h * .72, h * .23, '#8fa7a7'); circle(43, -h * .81, 4, '#344e56');
+        line([[53, -h * .65], [66, -h * .45], [63, -h * .26], [53, -h * .24]], '#b2c3b9', 14); line([[-42, -h * .38], [-42, -h * .2]], '#8ca4a5', 14);
+      } else if (e.style === 'turtle') {
+        ctx.beginPath(); ctx.ellipse(-5, -h * .57, 55, h * .42, 0, Math.PI, Math.PI * 2); ctx.fillStyle=material('#608d6b','#aac18b','#345b50'); ctx.fill();
+        rect(-60, -h * .57, 110, h * .21, '#75a07a'); circle(58, -h * .49, 15, '#a3b780'); circle(62, -h * .59, 3, '#34574e');
+        for (const x of [-35, 20]) circle(x, -h * .29, 10, '#a4b986'); line([[-43, -h * .65], [-14, -h * .89], [15, -h * .62], [39, -h * .68]], '#bfd1a0', 3);
+      } else {
+        ctx.beginPath(); ctx.ellipse(-16, -h * .47, 47, h * .23, 0, 0, Math.PI * 2); ctx.fillStyle=material('#b99672','#dec399','#816450'); ctx.fill();
+        poly([[5, -h * .48], [18, -h * .90], [43, -h * .98], [67, -h * .75], [62, -h * .62], [40, -h * .64], [30, -h * .40]], '#c5a67e');
+        poly([[26, -h * .89], [23, -h], [35, -h * .92]], '#c5a67e'); circle(46, -h * .79, 4, '#3c5052'); line([[12, -h * .86], [2, -h * .55]], '#736451', 8);
+        for (const x of [-40, 12]) line([[x, -h * .39], [x + 4, -h * .2]], '#a88665', 13); line([[-61, -h * .52], [-76, -h * .29]], '#786751', 8);
+      }
+      // Common handles and saddle on otherwise distinct animal silhouettes.
+      line([[-5, -h * .67], [-5, -h * .80], [6, -h * .80]], '#657c78', 4); rect(-30, -h * .67, 31, 6, '#d2bc86');
+      ctx.restore();
+    }
+  }
+  function trainGeometry(e) {
+    const near = Math.max(0, e.z), far = Math.max(near, e.z + e.length);
+    const point = (z, x, h) => { const p = project(z); return [CX + x * CM * p.s, p.y - h * CM * p.s]; };
+    return { near, far, point };
+  }
+  function miniTrain(e) {
+    if (e.completed || e.z + e.length <= 0) return;
+    const { near, far, point } = trainGeometry(e), half = e.width / 2, h = e.height;
+    const split = e.z + e.length * .52, gap = e.length * .035;
+    const car = (start, end, engine) => {
+      start = Math.max(near, start); end = Math.max(start, end); if (end - start < .01) return;
+      const pt = (z, x, height) => point(z, x, height);
+      poly([pt(start,-half,8),pt(start,half,8),pt(end,half,8),pt(end,-half,8)], '#273037');
+      // Distinct side panels and a copper roof use the same near/rear planes as collision depth.
+      for (const side of [-1,1]) {
+        poly([pt(start,side*half,15),pt(end,side*half,15),pt(end,side*half,h-7),pt(start,side*half,h-7)], side<0?'#48788b':'#345968', '#c3c8ba');
+        poly([pt(start,side*half,h-7),pt(end,side*half,h-7),pt(end,side*half,h),pt(start,side*half,h)], '#bb8165');
+        for (let i=0;i<3;i++) {
+          const a=start+(end-start)*(.13+i*.25),b=Math.min(end,a+(end-start)*.16);
+          poly([pt(a,side*half,h*.48),pt(b,side*half,h*.48),pt(b,side*half,h*.78),pt(a,side*half,h*.78)], '#a8c2c7', '#d7e0d2');
+        }
+        for (const t of [.16,.82]) {
+          const z=start+(end-start)*t,p=project(z),wheel=pt(z,side*(half+1),7);
+          circle(...wheel, 7*CM*p.s, '#202b34'); circle(...wheel, 2.4*CM*p.s, '#c0c7bb');
+        }
+      }
+      poly([pt(start,-half,h),pt(start,half,h),pt(end,half,h),pt(end,-half,h)], engine?'#c69877':'#8baeb4', '#e2d8c5');
+      if (!engine) {
+        const a=start+(end-start)*.13,b=end-(end-start)*.13;
+        poly([pt(a,-half*.72,h),pt(a,half*.72,h),pt(b,half*.72,h),pt(b,-half*.72,h)],'#354e59','#b8d0d0');
+        for(const t of [.32,.66]) { const z=start+(end-start)*t; line([pt(z,-half*.65,h),pt(z,half*.65,h)],'#bba283',4); }
+      } else {
+        const z=start+(end-start)*.57;
+        line([pt(z,-half*.85,h),pt(z,half*.85,h)],'#ead2b7',2);
+      }
+      const front=project(start);ctx.save();ctx.translate(CX,front.y);ctx.scale(front.s,front.s);
+      rect(-half*CM,-(h-7)*CM,e.width*CM,(h-22)*CM,engine?'#6794a5':'#527e90','#d2dace');
+      rect(-half*CM,-h*CM,e.width*CM,7*CM,'#c99473');
+      for (const x of [-half*.76,half*.08]) rect(x*CM,-h*.77*CM,half*.63*CM,h*.23*CM,'#a8c7d0','#e1e5d4');
+      rect(-half*CM,-h*.4*CM,e.width*CM,5*CM,'#deb77e');
+      for (const x of [-half*.67,half*.67]) circle(x*CM,-h*.29*CM,3.3*CM,'#f1dfae');
+      rect(-half*.75*CM,-14*CM,half*1.5*CM,5*CM,'#304956');
+      if(engine) { circle(0,-h*.31*CM,4*CM,'#ac5d64'); rect(-3*CM,-6*CM,6*CM,6*CM,'#596775'); }
+      ctx.restore();
+    };
+    ctx.save();
+    if(quality.preset.shadows)poly([point(near,-half-4,0),point(near,half+6,0),point(far,half+6,0),point(far,-half-4,0)],'#111b234d');
+    if (split+gap<far) car(split+gap,far,false);
+    if (split>near) {
+      line([point(Math.max(near,split-gap),0,18),point(Math.min(far,split+gap),0,18)],'#b5b9ad',4);
+      car(near,Math.min(far,split-gap),true);
+    }
+    ctx.restore();
+  }
+
+  function obstacle(e) {
+    if (e.style === 'mini-train') { miniTrain(e); return; }
+    if (e.z < -e.length - 5) return;
+    if (e.endurance && e.completed) return;
+    if (e.endurance) {
+      for (let i = 4; i >= 1; i--) {
+        const z = e.z + e.length * i / 4;
+        if (z <= 0) continue;
+        const p = project(z); ctx.save(); ctx.translate(CX, p.y); ctx.scale(p.s, p.s); ctx.globalAlpha = .7;
+        doorDrawers[e.style](e, -e.clearance * CM); ctx.restore();
+      }
+    }
+    const { s, y } = project(e.endurance ? Math.max(0, e.z) : e.z);
+    const top = -e.clearance * CM;
+    ctx.save(); ctx.translate(CX, y); ctx.scale(s, s);
+    ctx.globalAlpha = Math.min(1, (e.z + e.length + 5) / 5);
+    // A second inner frame communicates the depth and passage duration.
+    if (['straddle', 'jump'].includes(e.rule)) groundObstacle(e);
+    else {
+      if (e.rule !== 'open') { rect(-258, -370, 28, 370, '#344e5959'); rect(230, -370, 28, 370, '#344e5959'); }
+      doorDrawers[e.style](e, top);
+    }
+    ctx.restore();
+  }
+
+  function itemObject(type, x, y, scale = 1) {
+    ctx.save(); ctx.translate(x, y); ctx.scale(scale, scale);
+    switch (type) {
+      case 'phone': rect(-13, -35, 26, 35, '#233c49', '#bbcab6'); rect(-9, -31, 18, 24, '#79a8a2'); circle(0, -4, 2, '#d8ddba'); break;
+      case 'student-id': rect(-20, -26, 40, 26, '#dddcca', '#6c9990'); rect(-15, -21, 11, 15, '#84a5a5'); circle(-10, -18, 3, '#d9c4a1'); for (let y = -20; y < -4; y += 5) rect(1, y, 15, 2, '#859c88'); break;
+      case 'earphones': ctx.beginPath(); ctx.arc(0, -18, 17, Math.PI, Math.PI * 2); ctx.strokeStyle = '#b3c8b6'; ctx.lineWidth = 4; ctx.stroke(); rect(-20, -20, 8, 16, '#536e7b'); rect(12, -20, 8, 16, '#536e7b'); line([[18, -4], [12, 0]], '#d2d9bd', 2); break;
+      case 'notebook': rect(-19, -30, 38, 30, '#c1d2b1', '#567f75'); for (let y = -24; y < -3; y += 6) line([[-12, y], [14, y]], '#849b8b'); for (let y = -26; y < -3; y += 7) circle(-19, y, 2, '#e4deba'); break;
+      case 'pencil-case': rect(-24, -18, 48, 18, '#c3a880', '#86765c'); line([[-20, -13], [18, -13]], '#e0d3a1', 2); rect(15, -13, 5, 7, '#637d7b'); break;
+      case 'drink': rect(-8, -23, 16, 23, '#d6edda', '#668c88'); rect(-5, -28, 10, 6, '#405f64'); rect(-8, -15, 16, 8, '#bb6565'); break;
+      case 'hat': poly([[-21, -5], [-15, -9], [-12, -24], [12, -24], [17, -9], [25, -5], [25, 0], [-21, 0]], '#d3b183', '#8c7155'); line([[-14, -9], [16, -9]], '#688275', 5); break;
+      case 'book': rect(-18, -24, 36, 24, '#d9ce9c', '#705f58'); rect(-18, -24, 5, 24, '#ba7868'); line([[-9, -18], [12, -18]], '#9c9870', 2); break;
+      case 'wallet': rect(-17, -19, 34, 19, '#b78660', '#78523c'); rect(7, -12, 12, 7, '#bd9772'); circle(12, -8, 2, '#e6cf9b'); break;
+      case 'ball': circle(0, -17, 18, '#dba36b', '#795b49'); line([[-18, -17], [18, -17]], '#815c3f', 2); line([[0, -34], [0, 0]], '#815c3f', 2); ctx.beginPath(); ctx.ellipse(0, -17, 9, 18, 0, 0, Math.PI * 2); ctx.stroke(); break;
+      case 'towel': poly([[-20, -27], [17, -27], [17, -6], [10, 3], [-20, 0]], '#e1e7d2', '#a5b4a9'); line([[-17, -7], [15, -7]], '#769db0', 5); line([[-9, -24], [-9, -5]], '#a8b8ac', 1); break;
+      default: circle(0, -12, 12, '#e1c46d', '#a08743'); circle(0, -12, 6, '#f5e1a3'); rect(-2, -25, 4, 4, '#9da690');
+    }
+    ctx.restore();
+  }
+  const propDrawers = {
+    vending(h) {
+      rect(-54, -h, 108, h, '#b3c9bd', '#678b8b'); rect(-45, -h + 16, 75, h - 57, '#334f60');
+      for (let row = 0; row < 3; row++) for (let col = 0; col < 4; col++) { rect(-39 + col * 16, -h + 27 + row * 44, 10, 27, ['#c4b778', '#b96d6b', '#89b5bd'][col % 3]); rect(-39 + col * 16, -h + 55 + row * 44, 10, 4, '#dcdabd'); }
+      rect(36, -100, 10, 24, '#44646b'); circle(41, -60, 6, '#d7cc8b'); rect(-32, -28, 65, 16, '#304d56');
+    },
+    locker(h) {
+      rect(-55, -h, 110, h, '#879da1', '#c1ccc1');
+      for (const x of [-50, 3]) { rect(x, -h + 5, 47, h - 12, '#6e8893', '#a3b7b4'); for (let j = 0; j < 4; j++) rect(x + 8, -h + 15 + j * 6, 29, 2, '#3c5a63'); rect(x + 35, -h * .5, 4, 19, '#d6d5b8'); }
+    },
+    desk(h) {
+      rect(-63, -h, 126, 12, '#c6b588', '#756c56'); rect(-56, -h + 12, 8, h - 12, '#66777a'); rect(49, -h + 12, 8, h - 12, '#66777a'); rect(-43, -h + 20, 80, 42, '#8d8875'); rect(-5, -h + 34, 14, 3, '#dbcfaa');
+    },
+    shelf(h) {
+      rect(-55, -h, 110, h, '#937f60');
+      for (let y = -h + 14; y < -15; y += 62) { rect(-45, y, 90, 45, '#354e51'); for (let j = 0; j < 6; j++) rect(-38 + j * 13, y + 8 + j % 3 * 3, 10, 35 - j % 3 * 3, ['#b88e70', '#8ba3a1', '#c2ba82'][j % 3]); }
+      rect(-61, -h - 5, 122, 8, '#c5b188');
+    },
+    counter(h) {
+      rect(-72, -h, 144, h, '#798a7b'); for (let x = -62; x < 70; x += 18) line([[x, -h + 12], [x, -3]], '#aebda040', 3); rect(-79, -h - 6, 158, 10, '#cab793'); rect(30, -h - 35, 32, 29, '#435d64'); rect(32, -h - 32, 26, 17, '#adc8ba');
+    },
+    'shop-shelf'(h) {
+      rect(-60, -h, 120, h, '#66848a'); for (let y = -h + 24; y < -14; y += 64) { rect(-54, y, 108, 5, '#c0c6af'); for (let j = 0; j < 4; j++) { rect(-46 + j * 24, y - 30, 19, 29, ['#bdaa70', '#b67c71', '#b2c4b4'][j % 3]); rect(-43 + j * 24, y - 22, 13, 6, '#e4ddbb'); } } rect(-63, -h - 5, 126, 8, '#a8baad');
+    },
+    basket(h) {
+      rect(-6, -h - 26, 12, h + 26, '#647e86'); rect(-71, -h - 99, 142, 78, '#c7d8c9', '#62878b'); rect(-28, -h - 72, 56, 42, '#d0deca', '#7f999a'); line([[-31, -h - 20], [31, -h - 20]], '#c38763', 7);
+      for (let j = 0; j < 6; j++) line([[-29 + j * 12, -h - 20], [-17 + j * 7, -h + 22]], '#e0dbbb', 1.5);
+      line([[-18, -h + 19], [18, -h + 19]], '#d6d4b9', 2);
+    },
+    storage(h) {
+      rect(-64, -h, 128, h, '#9ba497'); for (let y = -h + 7; y < -10; y += 56) { rect(-54, y, 49, 49, '#708583', '#bdc4ad'); rect(4, y, 49, 49, '#7f8d82', '#bdc4ad'); rect(-36, y + 20, 12, 3, '#e1dabb'); rect(22, y + 20, 12, 3, '#e1dabb'); }
+    },
+    sign(h) {
+      rect(-8, -h, 16, h, '#506e78'); rect(-78, -h, 156, 67, '#a1b5a6', '#d7d4b5'); label('街の案内', 0, -h + 28, 16, '#385c63'); line([[-38, -h + 46], [38, -h + 46]], '#5b7c78', 3); poly([[30, -h + 40], [40, -h + 46], [30, -h + 52]], '#5b7c78');
+    }
+  };
+  Object.assign(propDrawers, {
+    bench(h) { rect(-73, -h, 146, 10, '#b9a077'); for (const x of [-56, 48]) rect(x, -h + 10, 8, h - 10, '#687e78'); rect(-68, -h + 25, 136, 6, '#7d8d7c'); },
+    blackboard(h) { rect(-130, -h, 260, 145, '#395e56', '#bfb990'); label('放課後の予定', 0, -h + 50, 19, '#cbd9b6'); line([[-90, -h + 79], [55, -h + 79]], '#c0cfaf', 2); line([[-90, -h + 105], [81, -h + 105]], '#c0cfaf', 2); rect(-138, -h + 145, 276, 9, '#d6c39b'); for (const x of [-110, 104]) rect(x, -h + 154, 6, h - 154, '#7d998a'); },
+    volley(h) { rect(-4, -h, 8, h, '#cfccc1'); for (let y = -h + 8; y < -h + 92; y += 17) rect(-4, y, 8, 8, '#b07564'); rect(-101, -h + 112, 200, 8, '#d7d6bf'); for (let x = -96; x < 100; x += 20) line([[x, -h + 120], [x, -h + 208]], '#becab54d'); for (let y = -h + 135; y < -h + 210; y += 20) line([[-99, y], [99, y]], '#becab54d'); },
+    'gym-wall'(h) { rect(-105, -h, 210, h, '#8da18d'); for (let y = -h + 29; y < -10; y += 36) line([[-91, y], [91, y]], '#bcc8a6', 7); line([[-91, -h], [-91, 0]], '#667d72', 7); line([[91, -h], [91, 0]], '#667d72', 7); },
+    tree(h) { rect(-13, -h + 23, 26, h - 23, '#83714f'); line([[0, -h + 63], [55, -h + 5]], '#83714f', 14); circle(9, -h + 56, 59, '#477859'); circle(-39, -h + 41, 44, '#5e8d63'); circle(56, -h + 68, 43, '#709567'); }
+  });
+  function item(e) {
+    if (e.collected || e.z < -10) return;
+    const { s, y } = project(e.z);
+    ctx.save(); ctx.translate(CX + 130 * s, y); ctx.scale(s, s);
+    ctx.globalAlpha = Math.min(1, (e.z + 10) / 8);
+    const height = e.height * CM;
+    // Fixtures stand at the curb; objects remain within the runner's arm reach.
+    const propHeight = e.prop === 'basket' ? height + 4 : height;
+    propDrawers[e.prop](propHeight);
+    const glow = ctx.createRadialGradient(0, -height - 18, 2, 0, -height - 18, 40);
+    glow.addColorStop(0, '#f7e7a77c'); glow.addColorStop(1, '#f7e7a700');
+    rect(-45, -height - 62, 90, 90, glow);
+    itemObject(e.object, 0, -height);
+    for (let i = 0; i < 3; i++) {
+      const a = ambientTime * 1.5 + i * 2.1, x = Math.cos(a) * 28, yy = -height - 15 + Math.sin(a) * 24;
+      line([[x - 3, yy], [x + 3, yy]], '#f5e4a7', 1.5); line([[x, yy - 3], [x, yy + 3]], '#f5e4a7', 1.5);
+    }
+    ctx.restore();
+  }
+
+  function runner() {
+    const p=rig.update(model,visualDT,ambientTime,project),jumpOffset=model.jumpY*CM;
+    ctx.save();
+    if(quality.preset.shadows){ctx.fillStyle='#07132230';ctx.beginPath();ctx.ellipse(CX+6,GROUND-9,45-Math.min(14,model.jumpY*.18),8,0,0,Math.PI*2);ctx.fill();}
+    // Tight shoe shadows sit at the actual planted soles, avoiding a floating runner.
+    if(!p.air)for(const leg of p.legs)if(leg.contact){ctx.fillStyle='#07132266';ctx.beginPath();ctx.ellipse(CX+leg.ankle[0],GROUND+leg.ankle[1]+11,17,3,0,0,Math.PI*2);ctx.fill();}
+    ctx.globalAlpha*=runnerOpacity();ctx.translate(CX,GROUND-jumpOffset);ctx.lineCap='round';ctx.lineJoin='round';
+    function limb(points,shade,width){line(points,'#13212ddd',width+3);line(points,shade,width);line(points.map(([x,y])=>[x+3,y]),'#b6c8d22d',3);}
+    // Back-view two-bone legs: seams and knee folds follow the joints, not a stretched sprite.
+    for(const leg of [...p.legs].sort((a,b)=>b.depth-a.depth)){
+      limb([leg.hip,leg.knee,leg.ankle],leg.side<0?'#284660':'#3c5f7a',23);
+      if(quality.preset.detail>0){line([[leg.knee[0]-7,leg.knee[1]-2],[leg.knee[0]+7,leg.knee[1]+2]],'#9aaeb750',2);line([[leg.knee[0]-5,leg.knee[1]+5],[leg.knee[0]+6,leg.knee[1]+7]],'#142b4180',2);}
+      ctx.save();ctx.translate(...leg.ankle);ctx.rotate(leg.toe);
+      poly([[-12,-8],[7,-10],[17,-2],[19,5],[14,10],[-12,10],[-15,5]],'#56342d');
+      poly([[-13,3],[16,3],[19,6],[14,11],[-12,11],[-15,7]],'#ddd7c5');
+      poly([[-12,-7],[5,-10],[15,-3],[17,3],[11,5],[-12,3]],leg.side<0?'#d76c32':'#f48b3e');
+      line([[-8,-5],[-7,1],[8,2]],'#ffc47b',2);line([[1,-7],[7,-5]],'#f4dfbd',2);line([[3,-3],[10,-1]],'#f4dfbd',2);line([[-11,8],[13,8]],'#474748',2);ctx.restore();
+    }
+    const reach=model.effects.find(f=>['reach','collect'].includes(f.type)),reaching=Boolean(reach),lift=reaching&&reach.high?14*CM:0;
+    const shoulder=Math.max(p.shoulder,-p.height+42),sway=p.twist,hips=p.hips;
+    poly([[-31+sway,shoulder],[31+sway,shoulder-lift],[29,hips+5],[-28,hips+5]],material('#181c22','#30343c','#0d121a',34),'#0c1017');
+    poly([[-30+sway,shoulder],[-16+sway,shoulder+5],[-12,hips-3],[-27,hips+4]],'#080c13');
+    poly([[18+sway,shoulder+4],[31+sway,shoulder-lift],[29,hips+5],[17,hips-2]],'#41434a');
+    line([[-24,hips-9],[2,hips-5],[25,hips-11]],'#53515a',2);
+    if(quality.preset.detail>0){line([[-20+sway,shoulder+17],[-7,shoulder+24],[14,shoulder+17]],'#81818925',2);line([[-21,hips-27],[-11,hips-20]],'#82838c38',2);line([[20,hips-35],[6,hips-18]],'#82838c38',2);}
+    // Denim waistband, yoke and rear pockets retain the 90cm inseam proportion.
+    line([[-26,hips+7],[26,hips+7]],'#54758b',5);
+    for(const side of[-1,1]){const x=side*14;poly([[x-9,hips+11],[x+9,hips+11],[x+7,hips+27],[x,hips+31],[x-7,hips+27]],'#294b66');line([[x-8,hips+12],[x+8,hips+12]],'#b9a17b68',1);}
+    const swing=Math.sin(p.phase)*22*(p.air?.2:1),rightShoulder=[32+sway,shoulder-lift];
+    const target=reaching?[reach.high?40:106,-(reach.high?CONFIG.STANDING_REACH:Math.max(100,reach.height??150))*CM]:[57-swing*.3,shoulder+84+Math.cos(p.phase)*12];
+    const rightArm=armPose(rightShoulder,target,reaching?1:.28);
+    const leftArm=armPose([-31+sway,shoulder],[-58-swing*.3,shoulder+84-Math.cos(p.phase)*12],.28);
+    for(const [original,side] of [[leftArm,-1],[rightArm,1]]){
+      const arm=(reaching&&side===1)?original:{shoulder:original.shoulder,elbow:[original.shoulder[0]+(original.elbow[0]-original.shoulder[0])*.32,original.shoulder[1]+(original.elbow[1]-original.shoulder[1])*.86],hand:[original.shoulder[0]+(original.hand[0]-original.shoulder[0])*.65,original.shoulder[1]+(original.hand[1]-original.shoulder[1])*.55+(p.air?-18:Math.sin(p.phase)*side*14)]};
+      line([arm.shoulder,arm.elbow,arm.hand],side<0?'#b08c72':'#d0ac8c',13);
+      const sleeve=[arm.shoulder[0]+(arm.elbow[0]-arm.shoulder[0])*.48,arm.shoulder[1]+(arm.elbow[1]-arm.shoulder[1])*.48];
+      line([arm.shoulder,sleeve],side<0?'#131820':'#33353d',19);line([arm.elbow,arm.hand],'#f0ccb22b',4);circle(...arm.hand,7,side<0?'#b79274':'#d8b594');
+    }
+    const headY=-p.height+21,headX=sway*.25;
+    rect(headX-8,headY+16,16,Math.max(4,shoulder-headY-8),'#bb947a');
+    circle(headX,headY,21,'#c5a287');circle(headX-19,headY+3,4,'#b38c70');circle(headX+19,headY+3,4,'#d1ae8e');
+    ctx.beginPath();ctx.ellipse(headX,headY-3,21,19,0,0,Math.PI*2);ctx.fillStyle='#172027';ctx.fill();
+    poly([[headX-19,headY+1],[headX+19,headY+1],[headX+14,headY+12],[headX-12,headY+12]],'#19232a');
+    line([[headX-12,headY-13],[headX-1,headY-18],[headX+12,headY-13]],'#4e565c',2);
+    ctx.restore();
+  }
+  function effects() {
+    for (const fx of model.effects) {
+      if (fx.type !== 'collect') continue;
+      ctx.save(); ctx.globalAlpha = Math.min(1, fx.life * 2);
+      const t = 1 - fx.life, y = 320 - t * 75;
+      label(fx.text, CX + 94, y, 29, '#f1bacb');
+      if (reducedEffects || quality.preset.detail === 0) { ctx.restore(); continue; }
+      for (let i = 0; i < 14; i++) {
+        const a = i * Math.PI * 2 / 14 + fx.seed;
+        circle(CX + 100 + Math.cos(a) * t * 100, 330 + Math.sin(a) * t * 85 + t * t * 55, 3 * fx.life + 1, i % 2 ? '#dda3b5' : '#d8c3a1');
+      }
+      ctx.restore();
+    }
+  }
+  function draw() {
+    ctx.clearRect(0, 0, W, H); background();
+    drawEvents.length = 0;
+    for (const event of model.events) if(event.z < CONFIG.SPAWN_DISTANCE + 15 && event.z + (event.length||0) > -8) drawEvents.push(event);
+    const events = drawEvents.sort((a, b) => b.z - a.z);
+    if (model.mode === 'title') {
+      obstacle({ style: 'mini-train', rule: 'straddle', clearance: 70, height: 70, width: 66, z: 12, length: 6 });
+      item({ prop: 'vending', object: 'drink', height: 201, z: 8, kind: 'item' });
+    }
+    for (const event of events) if (event.z >= 0) (event.kind === 'obstacle' ? obstacle : item)(event);
+    runner();
+    for (const event of events) if (event.z < 0) (event.kind === 'obstacle' ? obstacle : item)(event);
+    effects();
+    if (!vignetteGradient) {
+      vignetteGradient = ctx.createRadialGradient(CX, 350, 180, CX, 350, 610);
+      vignetteGradient.addColorStop(0, '#06132200'); vignetteGradient.addColorStop(1, '#0613227a');
+    }
+    const vignette = vignetteGradient; rect(0, 0, W, H, vignette);
+    heightReference();
+  }
+  function heightReference() {
+    if (!['playing', 'tutorial'].includes(model.mode)) return;
+    const x = 943, top = GROUND - CONFIG.PASSAGE_HEIGHT * CM;
+    line([[x, top], [x, GROUND]], '#d5ddc84d', 1);
+    for (const y of [top, GROUND - 100 * CM, GROUND]) line([[x - 5, y], [x + 4, y]], '#d5ddc88a', 1);
+    label('190cm', x - 9, top + 4, 10, '#d9e1cb', 'right');
+  }
+  function runnerOpacity() {
+    const top = GROUND - (model.headHeight * CM), bottom = GROUND - model.jumpY * CM;
+    const covered = model.events.some(e => {
+      if (e.kind !== 'obstacle' || !['straddle', 'jump'].includes(e.rule) || e.completed || e.z < -e.length) return false;
+      const p = project(e.z), objectTop = p.y - e.height * CM * p.s;
+      return objectTop < bottom && p.y > top;
+    });
+    return covered ? 0.38 : 1;
+  }
+  function frame(now) {
+    frameID=0;if(document.hidden)return;
+    const dt=lastTime===null?0:(now-lastTime)/1000;lastTime=now;
+    performanceStats.frames++;
+    ambientTime+=Math.min(dt,.1);visualDT=Math.min(dt,.1);
+    if(dt>.5&&!model.paused)pause();
+    if(resumeAt){const remaining=resumeAt-now;$('countdown').textContent=String(Math.max(1,Math.ceil(remaining/1000)));if(remaining<=0){resumeAt=0;model.paused=false;}}
+    else model.update(dt,touchCrouch||['ArrowDown','ShiftLeft','ShiftRight'].some(k=>held.has(k)),touchStraddle||held.has('KeyS'));
+    // Audio follows every simulation tick. DOM counters only need 15 Hz;
+    // mode changes and button actions still update immediately.
+    sound.consume(model.soundEvents.splice(0),model);music.update(model,document.hidden);
+    if(now-lastUI>=1000/15 || uiMode!==model.mode || lastPaused!==model.paused){syncUI();lastUI=now;lastPaused=model.paused;}
+    const active=['playing','tutorial'].includes(model.mode)&&!model.paused;
+    const interval=active?0:model.paused?1000/15:1000/30;
+    if(now-lastDraw>=interval-.5){
+      const begin=performance.now();draw();const cost=performance.now()-begin;
+      performanceStats.drawn++;performanceStats.lastCost=cost;performanceStats.maxCost=Math.max(performanceStats.maxCost,cost);
+      quality.sample(dt,cost,active);lastDraw=now;
+    }
+    frameID=requestAnimationFrame(frame);
+  }
+  function resizeCanvas() {
+    const width = canvas.getBoundingClientRect().width;
+    if (!width) return;
+    const scale = width / W * Math.min(quality.preset.dpr, window.devicePixelRatio || 1) * quality.preset.resolution;
+    const pixelWidth = Math.round(W * scale), pixelHeight = Math.round(H * scale);
+    if (canvas.width === pixelWidth && canvas.height === pixelHeight) return;
+    canvas.width = pixelWidth; canvas.height = pixelHeight; renderScale = pixelWidth / W;
+    ctx.setTransform(renderScale,0,0,renderScale,0,0); skyCache.clear();materials.clear(); hazeGradient = vignetteGradient = floorShade = null;
+  }
+  if (window.ResizeObserver) new ResizeObserver(resizeCanvas).observe(canvas);
+  window.addEventListener('resize',resizeCanvas);
+  quality.onChange=()=>{document.body.dataset.quality=quality.level;document.documentElement.style.setProperty('--glass-blur',quality.preset.blur+'px');scenery.clear(quality.level);skyCache.clear();resizeCanvas();$('quality-status').textContent=(quality.mode==='auto'?'自動：':'')+({low:'低',medium:'中',high:'高'}[quality.level]);};
+  $('quality-select').value=quality.mode;
+  $('quality-select').addEventListener('change',()=>{quality.set($('quality-select').value);sound.unlock();sound.play('ui');});
+  quality.onChange();
+  if (storage.get('skipTutorial', 'false') !== 'true') model.startTutorial();
+  syncUI(); draw(); frameID=requestAnimationFrame(frame);
+  // The iframe needs an explicit click in some browsers; autofocus is only a convenience.
+  focusGame();
+  // Opt-in inspection for automated tests. Never enabled during ordinary play.
+  if (new URLSearchParams(location.search).has('test')) window.__RUN188_TEST__ = { model, sound, music, quality, rig, scenery, materials, performanceStats, ranking, openRanking, refreshRanking, pause, draw, syncUI, project, storage, runnerOpacity, armPose, trainGeometry, resizeCanvas, sceneryAt, skyCache, camera: { HORIZON, GROUND, CM } };
+})();
+
+</script>
+</body>
+</html>
