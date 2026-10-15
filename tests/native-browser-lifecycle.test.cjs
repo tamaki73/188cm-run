@@ -13,11 +13,11 @@ test('requests a graceful browser close before removing the profile',async()=>{
 });
 test('stops a profile writer even when its launcher has already exited', {skip:process.platform==='win32'},async()=>{
  const profile=path.resolve(fs.mkdtempSync('work/native-orphan-')),counter=path.join(profile,'Default','counter');
- const writer="const fs=require('fs'),path=require('path'),dir=process.argv[1];process.on('SIGTERM',()=>{});function write(){try{fs.mkdirSync(path.join(dir,'Default'),{recursive:true});fs.writeFileSync(path.join(dir,'Default','counter'),String(Date.now()));}catch{}}write();setInterval(write,10);";
+ const writer="const fs=require('fs'),path=require('path'),dir=process.argv[1];process.on('SIGTERM',()=>{});function write(){try{fs.mkdirSync(path.join(dir,'Default'),{recursive:true});fs.appendFileSync(path.join(dir,'Default','counter'),'x');}catch{}}write();setInterval(write,10);";
  const launcher="require('child_process').spawn(process.execPath,['-e',process.argv[1],process.argv[2]],{stdio:'ignore'});process.exit(0);";
  const child=spawn(process.execPath,['-e',launcher,writer,profile],{detached:true,stdio:'ignore'});
  try{
-  await until(()=>child.exitCode!==null&&fs.existsSync(counter));const before=fs.readFileSync(counter,'utf8');await wait(60);assert.notEqual(fs.readFileSync(counter,'utf8'),before,'orphan still writes after launcher exit');
+  await until(()=>child.exitCode!==null&&fs.existsSync(counter));const before=fs.readFileSync(counter,'utf8');await until(()=>fs.readFileSync(counter,'utf8')!==before);
   await stopNativeBrowser({child,profile});assert.equal(fs.existsSync(profile),false);await wait(120);assert.equal(fs.existsSync(profile),false,'no surviving process recreates the directory');
  }finally{try{process.kill(-child.pid,'SIGKILL');}catch(error){if(error.code!=='ESRCH')throw error;}await fs.promises.rm(profile,{recursive:true,force:true,maxRetries:10,retryDelay:50});}
 });
