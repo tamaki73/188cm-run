@@ -5,7 +5,7 @@
   const CONFIG = Object.freeze({
     PLAYER_HEIGHT: 188, PASSAGE_HEIGHT: 190, INSEAM: 90,
     VERTICAL_JUMP: 75, STANDING_REACH: 252, MAX_REACH: 327,
-    INITIAL_SPEED: 16, MAX_SPEED: 56, TUTORIAL_SPEED: 9,
+    INITIAL_SPEED: 16, MAX_SPEED: 78, TUTORIAL_SPEED: 9,
     GRAVITY: 600, JUMP_POWER: 300, CROUCH_HEIGHT: 122,
     MAX_STRADDLE_WIDTH: 80, STRADDLE_STRAIN_RATE: 20,
     CROUCH_STRAIN_RATES: [15, 25, 35], CROUCH_STAGE_SECONDS: [2, 4],
@@ -15,17 +15,53 @@
     MIN_REACTION_TIME: 3.4, ACTION_BUFFER: 0.3, TEMPO_FACTOR: 0.88, TRAIN_SECONDS: 0.75, PLANNER_STRAIN_LIMIT: 55, ENDURANCE_SECONDS: 3.9, ENDURANCE_MARGIN: 0.3, RECOVERY_TARGET: 20,
     AREA_LENGTH: 180, SPAWN_DISTANCE: 100, FIXED_STEP: 1 / 120
   });
-  const SPEED_POINTS = [[0, 1], [100, 1.4], [200, 1.9], [300, 2.4], [500, 3.1], [800, 3.5]];
-  function speedAt(distance) {
-    for (let i = 1; i < SPEED_POINTS.length; i++) {
-      const [end, value] = SPEED_POINTS[i], [start, previous] = SPEED_POINTS[i - 1];
+  const LEGACY_SPEED_POINTS = [[0, 1], [100, 1.4], [200, 1.9], [300, 2.4], [500, 3.1], [800, 3.5]];
+  const SPEED_POINTS = [[0, 1], [100, 1.4], [200, 2.2], [350, 3.1], [500, 4], [800, 4.7], [1100, 4.875]];
+  function curveSpeed(distance, points) {
+    for (let i = 1; i < points.length; i++) {
+      const [end, value] = points[i], [start, previous] = points[i - 1];
       if (distance <= end) {
         const t = Math.max(0, (distance - start) / (end - start));
         return CONFIG.INITIAL_SPEED * (previous + (value - previous) * t * t * (3 - 2 * t));
       }
     }
-    return CONFIG.MAX_SPEED;
+    return CONFIG.INITIAL_SPEED * points[points.length - 1][1];
   }
+  const speedAt = distance => curveSpeed(distance, SPEED_POINTS);
+  const difficultyAt = distance => distance < 100 ? 0 : distance < 200 ? 1 : distance < 350 ? 2 : distance < 500 ? 3 : distance < 800 ? 4 : 5;
+  const ACTION_SLOTS = [[2.5, 3.5], [2, 2.6], [1.55, 2.05], [1.2, 1.65], [.9, 1.25], [.75, 1]];
+  const PATTERNS = Object.freeze([
+    { id: 'A', level: 3, actions: ['jump', 'crouch', 'straddle'] },
+    { id: 'B', level: 3, actions: ['straddle', 'standing', 'crouch'] },
+    { id: 'C', level: 3, actions: ['high-item', 'crouch'] },
+    { id: 'D', level: 4, actions: ['straddle', 'jump', 'crouch', 'high-item'] },
+    { id: 'E', level: 3, actions: ['crouch', 'standing', 'jump'] },
+    { id: 'jump-stand', level: 2, actions: ['jump', 'standing'] },
+    { id: 'crouch-straddle', level: 2, actions: ['crouch', 'straddle'] },
+    { id: 'straddle-jump', level: 2, actions: ['straddle', 'jump'] },
+    { id: 'item-crouch', level: 2, actions: ['low-item', 'crouch'] },
+    { id: 'jump-straddle', level: 2, actions: ['jump', 'straddle'] },
+    { id: 'crouch-item-straddle', level: 4, actions: ['crouch', 'low-item', 'straddle'] }
+  ]);
+  const MESSAGES = Object.freeze({
+    highMiss: ['高身長への期待を裏切ってしまいました', '取ってくれると思ってたのに……', '高いところ担当、まさかの任務失敗', '身長188cm、期待だけが高かった', '「届くでしょ？」という無言の圧に負けました', '高いところ係、解任のお知らせ', '頼まれた物は取れず、気まずさだけが残りました'],
+    highSuccess: ['高身長、ここで本領発揮！', '高いところ係、任務完了！', '188cmの使いどころ！', '頼まれた物を華麗にゲット！'],
+    head: ['思ってたより自分、デカかった', '身長の自己認識が追いついていません', '188cmを甘く見ていました', '自分の身長を過小評価していました', '頭上の安全確認を忘れた188cm', 'まだ普通サイズのつもりでした', '自分の大きさを再確認しました', '身長188cm、本人が一番驚いています']
+  });
+  // Message selection never consumes the obstacle RNG: opening sequences stay identical.
+  const messageFor = (list, event, distance) => list[((Math.imul(event.uid || 1, 2654435761) ^ Math.floor(distance * 100)) >>> 0) % list.length];
+  function actionOf(event) {
+    return event.kind === 'item' ? (event.high || (event.min ?? 0) > CONFIG.STANDING_REACH ? 'high-item' : 'low-item') :
+      event.rule === 'overhead' ? ((event.clearance ?? event.min) < CONFIG.PASSAGE_HEIGHT ? 'crouch' : 'standing') : event.rule === 'open' ? 'standing' : event.rule;
+  }
+  const actionLead = action => action === 'jump' ? .49 : action === 'high-item' ? .55 : ['crouch', 'straddle'].includes(action) ? .23 : 0;
+  function occupiedSeconds(event) {
+    const action = actionOf(event);
+    if (action === 'jump' || action === 'high-item') return .68; // Complete the full one-second flight, then settle.
+    if (event.kind === 'item') return CONFIG.ITEM_REACH_TIME + .08;
+    return event.duration + (action === 'standing' ? .08 : .20);
+  }
+  const minimumEntryGap = (previous, next) => occupiedSeconds(previous) + actionLead(actionOf(next)) + .18;
   const AREAS = [
     { id: 'street', name: '通学路', sky: '#79979c', floor: '#263b42', accent: '#a5c59b' },
     { id: 'school', name: '学校・大学', sky: '#8da9ba', floor: '#6d756d', accent: '#c8d9a4' },
@@ -114,6 +150,9 @@
       this.spawnTimer = 0.6; this.lastAction = ''; this.lastId = ''; this.kindRun = 0; this.lastKind = '';
       this.elapsed = 0; this.reason = ''; this.paused = false; this.serial = 0;
       this.planTime = 0; this.planLoad = 0; this.planEndTime = 0; this.recoveryUntil = 0; this.nextChallengeDistance = 350; this.challenges = 0; this.completedEvents = 0;
+      this.patternSerial = 0; this.comboCount = 0; this.lastPattern = ''; this.lastProof = null;
+      this.lastScheduled = null;
+      this.pickupNotice = { text: '', life: 0 };
       this.grabReservation = { remaining: 0, uid: null };
       this.tutorial = { step: 0, done: false, actions: new Set(), peak: false, recovered: false, retry: 0, feedback: '', passed: 0 };
     }
@@ -131,7 +170,7 @@
         const j = Math.floor(this.random() * (i + 1));
         [this.route[i], this.route[j]] = [this.route[j], this.route[i]];
       }
-      this.nextChallengeDistance = 350 + this.random() * 180;
+      this.nextChallengeDistance = 1400 + this.random() * 300;
     }
     startTutorial() { this.reset(); this.mode = 'tutorial'; this.speed = CONFIG.TUTORIAL_SPEED; this.setupLesson(); }
     title() { this.reset(); this.mode = 'title'; }
@@ -162,7 +201,7 @@
     }
     makeObstacle(def, clearance = def.min, z = CONFIG.SPAWN_DISTANCE) {
       const rule = def.rule || 'overhead';
-      const arrivalSpeed = this.mode === 'tutorial' ? CONFIG.TUTORIAL_SPEED : speedAt(this.distance + z);
+      const arrivalSpeed = this.mode === 'tutorial' ? CONFIG.TUTORIAL_SPEED : this.predictionSpeed(this.distance + z);
       const duration = (this.mode === 'tutorial' ? def.tutorialDuration : undefined) ?? def.duration ?? (rule === 'jump' ? 0.12 : rule === 'straddle' ? 0.16 : 0.32);
       return { ...def, rule, kind: 'obstacle', clearance, height: clearance, z, width: def.width || 460,
         duration, length: def.id === 'mini-train' && this.mode !== 'tutorial' ? this.futureDistance(duration, this.distance + z) - (this.distance + z) : arrivalSpeed * duration, uid: ++this.serial, failed: false, completed: false };
@@ -171,16 +210,21 @@
       const min = def.min ?? (def.high ? 305 : 201), max = def.max ?? min;
       const height = min + Math.floor(this.random() * (max - min + 1));
       if (height > CONFIG.MAX_REACH || height < 0) throw new RangeError('Item is outside the reachable world');
-      const arrivalSpeed = this.mode === 'tutorial' ? CONFIG.TUTORIAL_SPEED : speedAt(this.distance + z);
+      const arrivalSpeed = this.mode === 'tutorial' ? CONFIG.TUTORIAL_SPEED : this.predictionSpeed(this.distance + z);
       return { ...def, name: def.name || objectNames[def.object] || 'アイテム', kind: 'item', z, height,
         high: height > CONFIG.STANDING_REACH, reachDistance: arrivalSpeed * CONFIG.ITEM_REACH_TIME,
+        requested: height > CONFIG.STANDING_REACH,
         uid: ++this.serial, collected: false, completed: false };
+    }
+    predictionSpeed(distance) {
+      // Before 100m even lookahead positions/lengths retain the old generator's curve.
+      return this.distance < 100 ? curveSpeed(distance, LEGACY_SPEED_POINTS) : speedAt(distance);
     }
     futureDistance(seconds, start = this.distance) {
       // The speed curve depends only on distance. Integrate it to place events in arrival-time slots.
       let distance = start;
       const step = 1 / 60;
-      for (let t = 0; t < seconds - 1e-8; t += step) distance += speedAt(distance) * Math.min(step, seconds - t);
+      for (let t = 0; t < seconds - 1e-8; t += step) distance += this.predictionSpeed(distance) * Math.min(step, seconds - t);
       return distance;
     }
     intervalRange() {
@@ -200,7 +244,81 @@
       const [a, b] = CONFIG.CROUCH_STAGE_SECONDS, [low, mid, high] = CONFIG.CROUCH_STRAIN_RATES;
       return Math.min(seconds, a) * low + Math.min(Math.max(0, seconds - a), b - a) * mid + Math.max(0, seconds - b) * high;
     }
+    planPattern(actions, firstArrival, slot, patternId) {
+      const events = [];
+      let arrival = firstArrival, previousId = this.lastId;
+      for (const action of actions) {
+        const previous = events.at(-1);
+        if (previous) arrival = previous.arrivalTime + Math.max(slot, occupiedSeconds(previous) + actionLead(action) + .18);
+        const target = this.futureDistance(arrival - this.elapsed), area = this.areaAt(target);
+        const catalog = action.endsWith('item') ? ITEMS.map(d => ({ ...d, kind: 'item', high: d.min > CONFIG.STANDING_REACH })) : OBSTACLES;
+        const choices = catalog.filter(d => d.id !== previousId && d.areas.includes(area.id) && actionOf(d) === action);
+        if (!choices.length) return null;
+        const def = choices[Math.floor(this.random() * choices.length)];
+        const height = def.min === Infinity ? Infinity : def.min + Math.floor(this.random() * (def.max - def.min + 1));
+        const event = action.endsWith('item') ? this.makeItem(def, target - this.distance) : this.makeObstacle(def, height, target - this.distance);
+        if (previous) {
+          event.minimumGap = minimumEntryGap(previous, event);
+          event.minimumDistance = this.futureDistance(previous.arrivalTime + event.minimumGap - this.elapsed) - previous.worldDistance;
+        }
+        Object.assign(event, { areaId: this.areaAt(target).id, worldDistance: target, arrivalTime: arrival, patternId, patternIndex: events.length, plannedCost: this.actionCost(def) });
+        events.push(event); previousId = def.id;
+      }
+      return events;
+    }
+    spawnAdvanced() {
+      // Select the tier where the block will be encountered, not several seconds earlier at spawn.
+      const level = difficultyAt(this.futureDistance(CONFIG.MIN_REACTION_TIME)), range = ACTION_SLOTS[level];
+      const slot = range[0] + this.random() * (range[1] - range[0]);
+      const baseLoad = Math.max(this.planLoad, this.strain), restStart = Math.max(this.elapsed, this.planEndTime, this.planTime);
+      // Reserve recovery before an entire block, including late completion of the previous block.
+      const lead = .65;
+      const firstArrival = Math.max(this.elapsed + CONFIG.MIN_REACTION_TIME, restStart + lead);
+      const startTime = firstArrival - lead;
+      const load = Math.max(0, baseLoad - Math.max(0, startTime - restStart) * CONFIG.STRAIN_RECOVERY_RATE);
+      const recovering = load > 30 || startTime < this.recoveryUntil;
+      const useCombo = !recovering && level >= 2 && this.random() < [0, 0, .5, .7, .85, .94][level];
+      const candidates = useCombo ? PATTERNS.filter(p => p.level <= level && p.id !== this.lastPattern) : [];
+      // Finite attempts keep generation bounded; unsupported area/action combinations are discarded.
+      for (let attempt = 0; attempt < 8; attempt++) {
+        const pattern = candidates.length ? candidates.splice(Math.floor(this.random() * candidates.length), 1)[0] : null;
+        const area = this.areaAt(this.futureDistance(firstArrival - this.elapsed));
+        const singles = [...OBSTACLES, ...ITEMS.map(d => ({ ...d, kind: 'item', high: d.min > CONFIG.STANDING_REACH }))]
+          .filter(d => d.areas.includes(area.id) && d.id !== this.lastId && (!recovering || ['standing', 'low-item'].includes(actionOf(d))));
+        if (!singles.length) break;
+        const actions = pattern?.actions || [actionOf(singles[Math.floor(this.random() * singles.length)])];
+        const blockLead = Math.max(.34, actionLead(actions[0]) + .08);
+        const previous = this.lastScheduled;
+        const connector = previous ? previous.arrivalTime + occupiedSeconds(previous) + actionLead(actions[0]) + .18 : 0;
+        const blockArrival = Math.max(this.elapsed + CONFIG.MIN_REACTION_TIME, restStart + blockLead, connector);
+        const blockStart = blockArrival - blockLead;
+        const blockDistance = this.futureDistance(blockStart - this.elapsed);
+        const blockLoad = Math.max(0, baseLoad - Math.max(0, blockStart - restStart) * CONFIG.STRAIN_RECOVERY_RATE);
+        const events = this.planPattern(actions, blockArrival, slot, pattern?.id || (recovering ? 'recovery' : 'single'));
+        if (!events) continue;
+        const proof = validateSequence(events, { startTime: blockStart, startDistance: blockDistance, strain: blockLoad, route: this.route });
+        if (!proof.ok) continue;
+        const group = ++this.patternSerial;
+        for (const event of events) { event.patternGroup = group; event.validated = true; }
+        this.events.push(...events);
+        this.lastProof = { ...proof, startTime: blockStart, startDistance: blockDistance, startLoad: blockLoad }; this.lastPattern = events[0].patternId;
+        if (events.length > 1) this.comboCount++;
+        const final = events.at(-1);
+        this.lastScheduled = final;
+        // Keep the worst-case residual fatigue rather than an average successful run.
+        this.planTime = this.planEndTime = proof.endTime;
+        this.planLoad = Math.min(94, proof.endLoad + 3);
+        this.lastId = final.id; this.lastAction = actionOf(final).includes('jump') || final.high ? 'jump' : final.rule || 'item';
+        this.lastKind = final.kind; this.kindRun = 1;
+        // slot measures entry-to-entry time; occupied duration must not be charged twice.
+        this.spawnTimer = Math.max(.25, final.arrivalTime + slot - CONFIG.MIN_REACTION_TIME - this.elapsed);
+        return;
+      }
+      // No unverified fallback: recover and retry later instead of committing an unsafe block.
+      this.spawnTimer = .4;
+    }
     spawn() {
+      if (this.distance >= 100 && this.distance < this.nextChallengeDistance) { this.spawnAdvanced(); return; }
       const [min, max] = this.intervalRange();
       // Shorten ordinary slots by 12%; after airborne events retain the full landing margin.
       const floor = this.lastAction === 'jump' ? 2 * CONFIG.JUMP_POWER / CONFIG.GRAVITY + CONFIG.ACTION_BUFFER : 0.95;
@@ -212,7 +330,7 @@
       // An occasional visibly long low passage creates genuine 80–95% fatigue.
       // It starts after full recovery and is followed by standing-only recovery events.
       if (this.distance >= this.nextChallengeDistance && arrival >= this.recoveryUntil) {
-        const ready = Math.max(arrival, this.planTime + (baseLoad + 1) / CONFIG.STRAIN_RECOVERY_RATE);
+        const ready = Math.max(arrival, this.planTime + (baseLoad + 1) / CONFIG.STRAIN_RECOVERY_RATE, this.planEndTime + 1.65);
         const readyTarget = this.futureDistance(ready - this.elapsed), readyArea = this.areaAt(readyTarget);
         const corridors = OBSTACLES.filter(d => ['strap', 'rack-bar', 'bus-roof', 'club-door', 'tatami', 'old-entry'].includes(d.id) && d.areas.includes(readyArea.id) && d.id !== this.lastId);
         if (corridors.length) {
@@ -228,6 +346,8 @@
           }
         }
       }
+      // If this area has no long passage, use the fully validated ordinary planner.
+      if (this.distance >= 100 && !endurance) { this.spawnAdvanced(); return; }
       const forecast = Math.max(0, baseLoad - Math.max(0, arrival - this.planTime) * CONFIG.STRAIN_RECOVERY_RATE);
       const legal = def => {
         const cost = this.actionCost(def);
@@ -252,17 +372,27 @@
       const height = def.min === Infinity ? Infinity : def.min + Math.floor(this.random() * (def.max - def.min + 1));
       const event = kind === 'obstacle' ? this.makeObstacle(def, height, z) : this.makeItem(def, z);
       event.areaId = area.id; event.arrivalTime = arrival; event.plannedCost = this.actionCost(def);
+      if (this.distance >= 100) {
+        const sequence = windup ? [windup, event] : [event];
+        for (const member of sequence) member.worldDistance = this.distance + member.z;
+        const firstStart = sequence[0].arrivalTime - .65;
+        const initialLoad = Math.max(0, baseLoad - Math.max(0, firstStart - Math.max(this.planTime, this.planEndTime, this.elapsed)) * CONFIG.STRAIN_RECOVERY_RATE);
+        const proof = validateSequence(sequence, { startTime: firstStart, startDistance: this.futureDistance(firstStart - this.elapsed), strain: initialLoad, effort: 0, route: this.route });
+        if (!proof.ok) { this.spawnAdvanced(); return; }
+        for (const member of sequence) member.validated = true;
+      }
       this.planEndTime = arrival + (endurance ? CONFIG.ENDURANCE_SECONDS : kind === 'item' ? (event.high ? 0.55 : CONFIG.ITEM_REACH_TIME) : event.length / speedAt(target));
       if (endurance) {
         event.length = this.futureDistance(arrival - this.elapsed + CONFIG.ENDURANCE_SECONDS) - target;
         const peak = this.crouchLoad(CONFIG.ENDURANCE_SECONDS + CONFIG.ENDURANCE_MARGIN);
         this.planTime = this.planEndTime; this.planLoad = peak;
         this.recoveryUntil = this.planEndTime + (peak - CONFIG.RECOVERY_TARGET) / CONFIG.STRAIN_RECOVERY_RATE + CONFIG.ACTION_BUFFER;
-        this.nextChallengeDistance = target + 900 + this.random() * 300; this.challenges++;
+        this.nextChallengeDistance = target + 2600 + this.random() * 600; this.challenges++;
         event.plannedCost = peak;
       } else { this.planTime = arrival; this.planLoad = forecast + event.plannedCost; }
       if (windup) this.events.push(windup);
       this.events.push(event); this.lastId = def.id;
+      this.lastScheduled = event;
       this.lastAction = def.rule === 'jump' || event.high ? 'jump' : def.rule || 'item';
       this.kindRun = kind === this.lastKind ? this.kindRun + 1 : 1; this.lastKind = kind;
       // Keep the lookahead bounded when a long passage adds time to the schedule.
@@ -299,6 +429,7 @@
       reachable.collected = true; this.items++; const bonus = reachable.high ? 500 : 300; this.itemScore += bonus;
       this.emitSound('collect', { high: reachable.high });
       this.effects.push({ type: 'collect', text: '+' + bonus, life: 1, seed: this.random(), high: reachable.high, height: reachable.height });
+      if (reachable.high && this.mode === 'playing') this.pickupNotice = { text: messageFor(MESSAGES.highSuccess, reachable, this.distance), life: 2.2 };
       if (this.mode === 'tutorial') this.lessonPass();
       return true;
     }
@@ -324,9 +455,10 @@
       const reason = cause === 'crouch' ? 'ヘルニアになりました' : cause === 'straddle' ? '股関節が限界を迎えました' : cause === 'jump' ? 'ジャンプのしすぎで足首をねんざしました！' : '体への負担が限界に達しました！';
       this.gameOver(reason, 'fatigue');
     }
-    collisionReason(event) {
+    collisionReason(event, wasAirborne = false) {
       if (event.rule === 'jump' && this.straddling) return 'そこまでの柔軟性はありません';
       if (event.rule === 'straddle' && (this.jumpY > 0 || this.jumpVelocity > 0)) return 'そこまでの跳躍力はありません';
+      if (event.rule === 'overhead' && event.clearance < CONFIG.PASSAGE_HEIGHT && !wasAirborne && !this.crouching && !this.straddling && this.jumpY === 0 && this.jumpVelocity === 0) return messageFor(MESSAGES.head, event, this.distance);
       return event.name + (event.rule === 'overhead' ? 'に頭をぶつけました！' : 'にぶつかりました！');
     }
     emitSound(name, detail = {}) {
@@ -403,7 +535,7 @@
             event.rule === 'straddle' ? this.straddling && event.height <= CONFIG.INSEAM * 0.85 && event.width <= CONFIG.MAX_STRADDLE_WIDTH : foot >= event.height);
           if (!valid) {
             event.failed = true;
-            if (this.mode === 'playing') { this.gameOver(this.collisionReason(event), 'collision'); return; }
+            if (this.mode === 'playing') { this.gameOver(this.collisionReason(event, wasAirborne), 'collision'); return; }
             this.emitSound('collision');
             this.failLesson('もう一度！タイミングと姿勢を確かめましょう。'); break;
           }
@@ -419,7 +551,7 @@
         if (event.kind === 'item' && !event.completed && event.z < -event.reachDistance) {
           event.completed = true; this.completedEvents++;
           if (!event.collected) {
-            if (this.mode === 'playing') { this.gameOver(event.name + 'を取り逃がしました！'); return; }
+            if (this.mode === 'playing') { this.gameOver(event.high ? messageFor(MESSAGES.highMiss, event, this.distance) : event.name + 'を取り逃がしました！'); return; }
             this.failLesson('取り逃がしても大丈夫。近づいたらEを押しましょう。'); break;
           }
         }
@@ -428,6 +560,7 @@
       this.grabReservation.remaining = Math.max(0, this.grabReservation.remaining - dt);
       for (const fx of this.effects) fx.life -= dt;
       this.effects = this.effects.filter(fx => fx.life > 0);
+      this.pickupNotice.life = Math.max(0, this.pickupNotice.life - dt);
       if (this.mode === 'playing') { this.spawnTimer -= dt; if (this.spawnTimer <= 0) this.spawn(); }
       else {
         if (this.tutorial.retry > 0) {
@@ -438,7 +571,58 @@
       }
     }
   }
-  const api = { CONFIG, OBSTACLES, ITEMS, LESSONS, AREAS, SPEED_POINTS, speedAt, areaAt, GameModel };
+  /** Replay a whole block with the real fixed-step collision, grab and fatigue rules.
+   * Every timing variant must succeed; a failed replay is never committed by the spawner.
+   * This is a bounded witness search, not a claim that every possible player input succeeds.
+   */
+  function validateSequence(events, options = {}) {
+    if (!events.length) return { ok: false, reason: 'empty' };
+    const fps = options.fps || 30, timings = options.timings || [-.04, 0, .04];
+    let peak = 0, endLoad = 0, endTime = 0, witness = [];
+    for (const offset of timings) {
+      const simulation = new GameModel(() => .5);
+      simulation.mode = 'playing'; simulation.spawnTimer = Infinity;
+      simulation.distance = options.startDistance ?? 100;
+      simulation.speed = speedAt(simulation.distance);
+      simulation.elapsed = options.startTime ?? 0;
+      simulation.route = options.route || AREAS.slice();
+      const strain = options.strain || 0, ankleFraction = options.ankleFraction || 0;
+      simulation.crouchStrain = strain * (1 - ankleFraction); simulation.ankleStrain = strain * ankleFraction;
+      simulation.crouchEffort = options.effort ?? 4; // Assume unrecovered crouch effort: conservative across block boundaries.
+      const initialDistance = options.sourceDistance ?? events[0].worldDistance - events[0].z;
+      const sequence = events.map(e => ({ ...e, z: (e.worldDistance ?? initialDistance + e.z) - simulation.distance, completed: false, collected: false, failed: false }));
+      simulation.events = sequence;
+      const last = sequence.at(-1), deadline = last.arrivalTime + Math.max(occupiedSeconds(last), last.length / speedAt(last.worldDistance ?? simulation.distance) || 0) + .10;
+      if (!Number.isFinite(deadline) || deadline - simulation.elapsed > 24 || deadline <= simulation.elapsed) return { ok: false, reason: 'timeline' };
+      let crouchUntil = 0;
+      const inputs = [];
+      while (simulation.elapsed < deadline && simulation.mode === 'playing') {
+        const e = simulation.events.find(event => !event.completed && !event.collected);
+        let crouch = false, straddle = false;
+        if (e) {
+          const time = e.z / simulation.speed, action = actionOf(e);
+          if (action === 'crouch' && time <= .18 + offset && e.z >= -e.length) {
+            crouch = true; crouchUntil = simulation.elapsed + Math.max(0, (e.z + e.length) / simulation.speed) + .08;
+          }
+          if (action === 'straddle' && time <= .18 + offset && e.z >= -e.length) straddle = true;
+          if ((action === 'jump' || action === 'high-item') && time <= (e.high ? .5 : .44) + offset && e.z >= 0 && simulation.jumpY === 0 && simulation.jumpVelocity === 0) {
+            simulation.jump(); inputs.push({ uid: e.uid, action: 'jump', time: simulation.elapsed });
+          }
+          if (e.kind === 'item' && !e.planGrab && time <= .22 + offset && Math.abs(e.z) <= e.reachDistance * .85 && (e.high ? simulation.jumpY > 0 : simulation.jumpY === 0 && simulation.jumpVelocity === 0)) {
+            simulation.grab(); e.planGrab = true; inputs.push({ uid: e.uid, action: 'grab', time: simulation.elapsed });
+          }
+        }
+        if (simulation.elapsed < crouchUntil) crouch = true;
+        simulation.update(1 / fps, crouch, straddle);
+        peak = Math.max(peak, simulation.strain);
+      }
+      if (simulation.mode !== 'playing' || sequence.some(e => !e.completed || e.kind === 'item' && !e.collected) || simulation.jumpY > 0 || peak >= 94) return { ok: false, reason: simulation.reason || 'incomplete-or-fatigued', peak };
+      endLoad = Math.max(endLoad, simulation.strain); endTime = Math.max(endTime, simulation.elapsed);
+      if (offset === 0 || !witness.length) witness = inputs;
+    }
+    return { ok: true, peak, endLoad, endTime, timings: timings.slice(), witness };
+  }
+  const api = { CONFIG, OBSTACLES, ITEMS, LESSONS, AREAS, SPEED_POINTS, speedAt, areaAt, GameModel, difficultyAt, PATTERNS, MESSAGES, actionOf, minimumEntryGap, validateSequence };
   if (typeof module !== 'undefined' && module.exports) module.exports = api;
   else root.Run188 = api;
 })(typeof globalThis !== 'undefined' ? globalThis : this);

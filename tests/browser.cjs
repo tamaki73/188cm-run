@@ -73,7 +73,7 @@ const state = page => get(page, () => { const g = __RUN188_TEST__.model; return 
     const normalText = await page.locator('#game').innerText();
     assert.ok(!/182cm|183cm|184cm|185cm|186cm|187cm|しゃがめ|安全|ジャンプが必要/.test(normalText));
     await page.waitForFunction(() => __RUN188_TEST__.model.mode === 'gameover');
-    assert.match(await page.locator('#over-reason').innerText(), /頭をぶつけ/);
+    assert.ok(await page.evaluate(()=>Run188.MESSAGES.head.includes(document.getElementById('over-reason').textContent)));
     await page.screenshot({ path: path.join(__dirname, '../work/gameover.png') });
     await page.keyboard.press('Enter'); assert.equal((await state(page)).mode, 'playing'); assert.equal((await state(page)).items, 0);
     await page.keyboard.press('Escape'); assert.equal((await state(page)).paused, true);

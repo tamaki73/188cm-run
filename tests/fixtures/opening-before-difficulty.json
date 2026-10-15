@@ -1,0 +1,314 @@
+[
+  {
+    "seed": 1,
+    "spawned": [
+      {
+        "id": "tatami",
+        "kind": "obstacle",
+        "height": 177,
+        "length": 6.772311358973941,
+        "z": 62.20912188803823,
+        "arrival": 4
+      },
+      {
+        "id": "notebook",
+        "kind": "item",
+        "height": 140,
+        "length": null,
+        "z": 75.90644107327925,
+        "arrival": 6.719807373732328
+      }
+    ],
+    "passed": [
+      1
+    ],
+    "distance": 100.04136928186036,
+    "elapsed": 5.283333333333386
+  },
+  {
+    "seed": 2,
+    "spawned": [
+      {
+        "id": "tatami",
+        "kind": "obstacle",
+        "height": 175,
+        "length": 6.772311358973941,
+        "z": 62.20912188803823,
+        "arrival": 4
+      },
+      {
+        "id": "phone",
+        "kind": "item",
+        "height": 115,
+        "length": null,
+        "z": 76.8950013365688,
+        "arrival": 6.699445262979716
+      }
+    ],
+    "passed": [
+      1
+    ],
+    "distance": 100.04136928186036,
+    "elapsed": 5.283333333333386
+  },
+  {
+    "seed": 3,
+    "spawned": [
+      {
+        "id": "double-cone",
+        "kind": "obstacle",
+        "height": 50,
+        "length": 2.5396167596152277,
+        "z": 62.20912188803823,
+        "arrival": 4
+      },
+      {
+        "id": "earphones",
+        "kind": "item",
+        "height": 130,
+        "length": null,
+        "z": 77.71083162382865,
+        "arrival": 6.679083152227104
+      }
+    ],
+    "passed": [
+      1
+    ],
+    "distance": 100.04136928186036,
+    "elapsed": 5.283333333333386
+  },
+  {
+    "seed": 4,
+    "spawned": [
+      {
+        "id": "supermarket",
+        "kind": "obstacle",
+        "height": 205,
+        "length": 6.772311358973941,
+        "z": 62.20912188803823,
+        "arrival": 4
+      },
+      {
+        "id": "high-hat",
+        "kind": "item",
+        "height": 300,
+        "length": null,
+        "z": 78.6816566921014,
+        "arrival": 6.658721041474491
+      }
+    ],
+    "passed": [
+      1
+    ],
+    "distance": 100.04136928186036,
+    "elapsed": 5.283333333333386
+  },
+  {
+    "seed": 5,
+    "spawned": [
+      {
+        "id": "mini-train",
+        "kind": "obstacle",
+        "height": 70,
+        "length": 16.269578481553296,
+        "z": 62.20912188803823,
+        "arrival": 4
+      },
+      {
+        "id": "horse",
+        "kind": "obstacle",
+        "height": 55,
+        "length": 2.910535673669668,
+        "z": 79.64316934598838,
+        "arrival": 6.638358930721878
+      }
+    ],
+    "passed": [
+      1
+    ],
+    "distance": 100.04136928186036,
+    "elapsed": 5.283333333333386
+  },
+  {
+    "seed": 6,
+    "spawned": [
+      {
+        "id": "suitcase",
+        "kind": "obstacle",
+        "height": 65,
+        "length": 3.3861556794869707,
+        "z": 62.20912188803823,
+        "arrival": 4
+      },
+      {
+        "id": "strap",
+        "kind": "obstacle",
+        "height": 163,
+        "length": 7.745211656982755,
+        "z": 80.59522963219844,
+        "arrival": 6.6179968199692665
+      }
+    ],
+    "passed": [
+      1
+    ],
+    "distance": 100.04136928186036,
+    "elapsed": 5.283333333333386
+  },
+  {
+    "seed": 7,
+    "spawned": [
+      {
+        "id": "suitcase",
+        "kind": "obstacle",
+        "height": 65,
+        "length": 3.3861556794869707,
+        "z": 62.20912188803823,
+        "arrival": 4
+      },
+      {
+        "id": "ticket-gate",
+        "kind": "obstacle",
+        "height": null,
+        "length": 7.729170431044214,
+        "z": 81.53789402519553,
+        "arrival": 6.5976347092166545
+      }
+    ],
+    "passed": [
+      1
+    ],
+    "distance": 100.04136928186036,
+    "elapsed": 5.283333333333386
+  },
+  {
+    "seed": 8,
+    "spawned": [
+      {
+        "id": "elephant",
+        "kind": "obstacle",
+        "height": 50,
+        "length": 2.5396167596152277,
+        "z": 62.20912188803823,
+        "arrival": 4
+      },
+      {
+        "id": "mini-train",
+        "kind": "obstacle",
+        "height": 70,
+        "length": 19.910464076623782,
+        "z": 76.92216647960085,
+        "arrival": 7.058333333333323
+      }
+    ],
+    "passed": [
+      1
+    ],
+    "distance": 100.04136928186036,
+    "elapsed": 5.283333333333386
+  },
+  {
+    "seed": 9,
+    "spawned": [
+      {
+        "id": "rack-bar",
+        "kind": "obstacle",
+        "height": 185,
+        "length": 6.772311358973941,
+        "z": 62.20912188803823,
+        "arrival": 4
+      },
+      {
+        "id": "strap",
+        "kind": "obstacle",
+        "height": 160,
+        "length": 8.060370007937124,
+        "z": 76.56331194315197,
+        "arrival": 6.983333333333324
+      }
+    ],
+    "passed": [
+      1
+    ],
+    "distance": 100.04136928186036,
+    "elapsed": 5.283333333333386
+  },
+  {
+    "seed": 10,
+    "spawned": [
+      {
+        "id": "elephant",
+        "kind": "obstacle",
+        "height": 50,
+        "length": 2.5396167596152277,
+        "z": 62.20912188803823,
+        "arrival": 4
+      },
+      {
+        "id": "panda",
+        "kind": "obstacle",
+        "height": 45,
+        "length": 2.9969228843673528,
+        "z": 76.21041627891748,
+        "arrival": 6.9083333333333234
+      }
+    ],
+    "passed": [
+      1
+    ],
+    "distance": 100.04136928186036,
+    "elapsed": 5.283333333333386
+  },
+  {
+    "seed": 11,
+    "spawned": [
+      {
+        "id": "bus-roof",
+        "kind": "obstacle",
+        "height": 181,
+        "length": 6.772311358973941,
+        "z": 62.20912188803823,
+        "arrival": 4
+      },
+      {
+        "id": "suitcase",
+        "kind": "obstacle",
+        "height": 65,
+        "length": 3.9625468410879323,
+        "z": 75.86295885377453,
+        "arrival": 6.833333333333323
+      }
+    ],
+    "passed": [
+      1
+    ],
+    "distance": 100.04136928186036,
+    "elapsed": 5.283333333333386
+  },
+  {
+    "seed": 12,
+    "spawned": [
+      {
+        "id": "bus-roof",
+        "kind": "obstacle",
+        "height": 185,
+        "length": 6.772311358973941,
+        "z": 62.20912188803823,
+        "arrival": 4
+      },
+      {
+        "id": "suitcase",
+        "kind": "obstacle",
+        "height": 65,
+        "length": 3.930207874843597,
+        "z": 75.52040902516212,
+        "arrival": 6.758333333333324
+      }
+    ],
+    "passed": [
+      1
+    ],
+    "distance": 100.04136928186036,
+    "elapsed": 5.283333333333386
+  }
+]

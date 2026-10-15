@@ -40,7 +40,7 @@ jobs:
         run: |
           mkdir -p work
           python3 tools/build_colab.py
-          git diff --exit-code -- 188cm_RUN.ipynb colab_cells.py
+          git diff --exit-code -- 188cm_RUN.ipynb colab_cells.py downloads/188cm-RUN.html
           python3 tests/colab_test.py
       - name: Firestoreアクセス制御の検証（本番に接続しない）
         run: npm run test:rules
@@ -62,6 +62,7 @@ jobs:
           node tests/audio-browser.cjs
           node tests/menu-browser.cjs
           node tests/presentation-browser.cjs
+          node tests/difficulty-browser.cjs
           xvfb-run -a node tests/tabs-browser.cjs
           SOAK_SECONDS=90 node tests/performance-browser.cjs
           npm run test:online

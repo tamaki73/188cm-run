@@ -1,0 +1,24 @@
+{
+  "seeds": 50,
+  "eventsPassed": 100000,
+  "totalDistance": 9551029,
+  "maxStrain": 88.17,
+  "highLoadFrames": 127602,
+  "recoveries": 2521,
+  "maxQueuedEvents": 8,
+  "uniqueEvents": 41,
+  "areas": [
+    "home",
+    "bus",
+    "street",
+    "store",
+    "park",
+    "station",
+    "school"
+  ],
+  "fps": [
+    30,
+    60,
+    120
+  ]
+}

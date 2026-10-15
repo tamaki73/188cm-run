@@ -292,8 +292,10 @@
     }
     const event = model.nextEvent;
     $('next-event').hidden = !active || !event;
-    const name = event ? '次の' + (event.kind === 'item' ? 'アイテム' : '障害物') + '：' + event.name : '';
+    const name = event ? event.kind === 'item' && event.high ? '頼まれごと：' + event.name + 'を取って！' : '次の' + (event.kind === 'item' ? 'アイテム' : '障害物') + '：' + event.name : '';
     if ($('next-event').textContent !== name) $('next-event').textContent = name;
+    const hint = model.mode === 'playing' && model.pickupNotice.life > 0 ? model.pickupNotice.text : '↓ / Shift：しゃがむ　S：またぐ　Space：ジャンプ　E：取得';
+    if ($('play-hint-message').textContent !== hint) $('play-hint-message').textContent = hint;
     if (model.mode === 'tutorial') {
       const t = model.tutorial;
       if (lessonIndex !== t.step) {

@@ -16,6 +16,9 @@ def bundle_html():
 
 def build():
     html = bundle_html()
+    downloads = ROOT / 'downloads'
+    downloads.mkdir(exist_ok=True)
+    (downloads / '188cm-RUN.html').write_text(html, encoding='utf-8')
     cells = [
         '# セル1：完成版ゲームのHTMLファイルを生成します。\n'
         'from pathlib import Path\n'
@@ -62,7 +65,7 @@ def build():
     }
     (ROOT / '188cm_RUN.ipynb').write_text(json.dumps(notebook, ensure_ascii=False, indent=2) + '\n', encoding='utf-8')
     (ROOT / 'colab_cells.py').write_text('\n\n'.join('# %%\n' + cell for cell in cells), encoding='utf-8')
-    print('Generated 188cm_RUN.ipynb and colab_cells.py (complete game embedded).')
+    print('Generated standalone HTML, 188cm_RUN.ipynb and colab_cells.py.')
 
 
 if __name__ == '__main__':
