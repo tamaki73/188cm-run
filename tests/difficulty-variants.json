@@ -1,0 +1,21 @@
+{
+  "cases": 135,
+  "events": 4050,
+  "peak": 89.93333333333334,
+  "maxQueued": 8,
+  "patterns": [
+    "straddle-jump",
+    "crouch-straddle",
+    "recovery",
+    "item-crouch",
+    "single",
+    "E",
+    "jump-straddle",
+    "C",
+    "A",
+    "jump-stand",
+    "crouch-item-straddle",
+    "B",
+    "D"
+  ]
+}

@@ -8,11 +8,11 @@ function drive(g, dt = 1 / 60, options = {}) {
     const timeToEntry = e.z / g.speed;
     if (e.kind === 'obstacle') {
       if (e.rule === 'overhead' && e.clearance < C.PASSAGE_HEIGHT && timeToEntry <= (options.crouchLead ?? .13) && e.z >= -e.length) { crouch = true; if(options.crouchTail) g._botCrouchUntil = g.elapsed + Math.max(0,(e.z+e.length)/g.speed) + options.crouchTail; }
-      if (e.rule === 'straddle' && timeToEntry <= 0.13 && e.z >= -e.length) straddle = true;
-      if (e.rule === 'jump' && timeToEntry <= 0.44 && e.z >= 0 && g.jumpY === 0 && g.jumpVelocity === 0) g.jump();
+      if (e.rule === 'straddle' && timeToEntry <= (options.straddleLead ?? .13) && e.z >= -e.length) straddle = true;
+      if (e.rule === 'jump' && timeToEntry <= (options.jumpLead ?? .44) && e.z >= 0 && g.jumpY === 0 && g.jumpVelocity === 0) g.jump();
     } else if (!e.collected) {
-      if (e.high && timeToEntry <= 0.5 && e.z >= 0 && g.jumpY === 0 && g.jumpVelocity === 0) g.jump();
-      if (!e.reserved && Math.abs(e.z) <= e.reachDistance * .8 && (e.high ? g.jumpY > 0 && timeToEntry <= .30 : g.jumpY === 0 && g.jumpVelocity === 0)) { g.grab(); e.reserved = true; }
+      if (e.high && timeToEntry <= (options.highLead ?? .5) && e.z >= 0 && g.jumpY === 0 && g.jumpVelocity === 0) g.jump();
+      if (!e.reserved && Math.abs(e.z) <= e.reachDistance * .8 && (e.high ? g.jumpY > 0 && timeToEntry <= (options.grabLead ?? .30) : g.jumpY === 0 && g.jumpVelocity === 0)) { g.grab(); e.reserved = true; }
     }
   }
   if(g._botCrouchUntil > g.elapsed) crouch = true;

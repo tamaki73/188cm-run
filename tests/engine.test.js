@@ -1,7 +1,7 @@
 'use strict';
 const { test } = require('node:test');
 const assert = require('node:assert/strict');
-const { CONFIG: C, OBSTACLES, ITEMS, LESSONS, AREAS, speedAt, areaAt, GameModel } = require('../game-engine');
+const { CONFIG: C, OBSTACLES, ITEMS, LESSONS, AREAS, speedAt, areaAt, GameModel, minimumEntryGap } = require('../game-engine');
 const { drive, simulate, seeded } = require('./virtual-player.cjs');
 const def = id => OBSTACLES.find(e => e.id === id);
 const itemDef = id => ITEMS.find(e => e.id === id);
@@ -79,20 +79,27 @@ test('exhaustion causes keep their distinct messages', () => {
   assert.equal(ankle.reason, 'ジャンプのしすぎで足首をねんざしました！');
 });
 test('speed meets all requested distance milestones smoothly and stays capped', () => {
-  for (const [d, v] of [[0,1],[100,1.4],[200,1.9],[300,2.4],[500,3.1],[800,3.5]]) assert.equal(speedAt(d) / C.INITIAL_SPEED, v);
-  let previous = C.INITIAL_SPEED; for (let d = 0; d <= 2000; d++) { const v = speedAt(d); assert.ok(v >= previous && v <= C.MAX_SPEED); assert.ok(v - previous < .15); previous = v; }
+  for (const [d, v] of [[0,1],[100,1.4],[200,2.2],[350,3.1],[500,4],[800,4.7],[1100,4.875]]) assert.equal(speedAt(d) / C.INITIAL_SPEED, v);
+  let previous = C.INITIAL_SPEED; for (let d = 0; d <= 2000; d++) { const v = speedAt(d); assert.ok(v >= previous && v <= C.MAX_SPEED); assert.ok(v - previous < .21); previous = v; }
 });
 test('30/60/120fps yield the same distance and fatigue', () => {
   const values = [30,60,120].map(fps => { const g = fresh(); for(let i=0;i<fps*3;i++) g.update(1/fps,true); return g; });
   for (const g of values) { assert.ok(Math.abs(g.distance-values[0].distance)<.02); assert.ok(Math.abs(g.strain-values[0].strain)<.02); }
 });
-test('area-specific spawning has reaction time, bounded forecast, no unreachable or repeated event', () => {
-  const g = new GameModel(seeded(2)); g.start(); let last = '', time = 0;
-  for (let i=0;i<2000;i++) {
-    g.distance=i*7; g.elapsed=i*1.6; const previousPlan=g.planTime,previousEnd=g.planEndTime,afterJump=g.lastAction==='jump'; g.spawn(); const e=g.events.pop(); if(!e) continue;
-    assert.notEqual(e.id,last); last=e.id; assert.ok(e.areas.includes(e.areaId)); assert.ok(e.arrivalTime-g.elapsed>=C.MIN_REACTION_TIME-1e-8);
-    assert.ok(e.arrivalTime-previousPlan >= (afterJump ? 1.3 : .95)-1e-8); assert.ok(e.arrivalTime-previousEnd >= .8-1e-8); time=e.arrivalTime; assert.ok(g.planLoad<95); if(!e.endurance&&e.plannedCost>0) assert.ok(g.planLoad<=C.PLANNER_STRAIN_LIMIT+1e-8);
-    if(e.kind==='item') assert.ok(e.height<=327);
+test('area-specific batches have reaction time, validated transitions, bounded fatigue and reachable items', () => {
+  const g = new GameModel(seeded(2)); g.start(); let last = '';
+  for (let i=0;i<1000;i++) {
+    g.distance=i*7; g.elapsed=Math.max(i*1.6,g.planEndTime); const previousEnd=g.planEndTime; g.events=[]; g.spawn();
+    const events=g.events;
+    for (let j=0;j<events.length;j++) {
+      const e=events[j]; assert.notEqual(e.id,last); last=e.id; assert.ok(e.areas.includes(e.areaId));
+      assert.ok(e.arrivalTime-g.elapsed>=C.MIN_REACTION_TIME-1e-8);
+      if(j===0) assert.ok(e.arrivalTime-previousEnd>=.34-1e-8);
+      if(j>0&&e.patternGroup) assert.ok(e.arrivalTime-events[j-1].arrivalTime>=minimumEntryGap(events[j-1],e)-1e-8);
+      if(e.kind==='item') assert.ok(e.height<=327);
+    }
+    assert.ok(g.planLoad<95);
+    if(events.some(e=>e.patternGroup)) assert.equal(g.lastProof.ok,true);
   }
   assert.equal(AREAS.length,7); assert.equal(areaAt(0).id,'street'); assert.equal(areaAt(180*5).id,'park');
 });
@@ -141,7 +148,7 @@ test('wrong straddle/jump actions select the exact requested messages', () => {
   const s=fresh();s.crouchStrain=99;s.update(.1,false,true);assert.equal(s.reason,'股関節が限界を迎えました');
 });
 test('endurance sections cause genuine fatigue and provide time to recover without unavoidable failure', () => {
-  for(const fps of [30,60,120]) { const r=simulate(77,1000,fps,{crouchLead:.23,crouchTail:.1});assert.ok(r.peak>=80&&r.peak<=95);assert.ok(r.highLoadFrames>0);assert.ok(r.recoveries>0);assert.ok(r.maxQueuedEvents<=5); }
+  for(const fps of [30,60,120]) { const r=simulate(77,1000,fps,{crouchLead:.23,crouchTail:.1});assert.ok(r.peak>=80&&r.peak<=95);assert.ok(r.highLoadFrames>0);assert.ok(r.recoveries>0);assert.ok(r.maxQueuedEvents<=12); }
 });
 
 test('five real restarts shuffle background routes and event sequences; tutorials remain fixed', () => {
@@ -152,7 +159,7 @@ test('five real restarts shuffle background routes and event sequences; tutorial
  assert.equal(LESSONS[2][1],'↓キーまたはShiftキーを押してしゃがみます。完全に障害物が消えるまでしゃがみ続けてください。');
 });
 test('unnecessary crouch at a safe door has a later cost; a short tap is recoverable', () => {
- function passage(waste){const g=fresh();g.distance=1000;g.speed=56;const safe=g.makeObstacle(def('new-class'),200,0),low=g.makeObstacle({...def('club-door'),duration:3.9},175,56*1.3);g.events=[safe,low];
+ function passage(waste){const g=fresh();g.distance=1000;g.speed=speedAt(g.distance);const safe=g.makeObstacle(def('new-class'),200,0),low=g.makeObstacle({...def('club-door'),duration:3.9},175,g.futureDistance(1.3)-g.distance);g.events=[safe,low];
  let peak=0;for(let frame=0;frame<1000&&g.mode==='playing'&&!low.completed;frame++){const time=g.elapsed;g.update(1/120,time<waste || time>=1.18 && !low.completed);peak=Math.max(peak,g.strain);}return{g,peak};}
  const correct=passage(0),tap=passage(.1),waste=passage(1.2);
  assert.equal(correct.g.mode,'playing');assert.equal(tap.g.mode,'playing');assert.equal(waste.g.reason,'ヘルニアになりました');assert.ok(correct.peak>=80&&correct.peak<95);
@@ -174,7 +181,7 @@ test('shorter slots keep a full landing margin and extra time after a long train
  for(let frame=0;frame<180000&&g.mode==='playing'&&g.completedEvents<1000;frame++) {
   const previous=g.events.at(-1),end=g.planEndTime,action=g.lastAction,serial=g.serial;
   drive(g);
-  if(g.serial>serial&&previous){const next=g.events.find(e=>e.uid>serial);if(next){assert.ok(next.arrivalTime-end>=.8-1e-8);if(action==='jump')assert.ok(next.arrivalTime-previous.arrivalTime>=1.3-1e-8);checked++;}}
+  if(g.serial>serial&&previous){const next=g.events.find(e=>e.uid>serial);if(next){assert.ok(next.arrivalTime-end>=.34-1e-8);assert.ok(next.arrivalTime-previous.arrivalTime>=minimumEntryGap(previous,next)-1e-8);checked++;}}
  }
  assert.equal(g.mode,'playing');assert.equal(g.completedEvents,1000);assert.ok(checked>500);
 });

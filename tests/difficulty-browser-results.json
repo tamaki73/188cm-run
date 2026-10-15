@@ -1,0 +1,80 @@
+{
+  "cases": [
+    {
+      "device": "keyboard",
+      "pattern": "A",
+      "events": 3,
+      "passed": true,
+      "safePauses": 0
+    },
+    {
+      "device": "keyboard",
+      "pattern": "B",
+      "events": 3,
+      "passed": true,
+      "safePauses": 0
+    },
+    {
+      "device": "keyboard",
+      "pattern": "C",
+      "events": 2,
+      "passed": true,
+      "safePauses": 0
+    },
+    {
+      "device": "keyboard",
+      "pattern": "D",
+      "events": 4,
+      "passed": true,
+      "safePauses": 0
+    },
+    {
+      "device": "keyboard",
+      "pattern": "E",
+      "events": 3,
+      "passed": true,
+      "safePauses": 0
+    },
+    {
+      "device": "native touch emulation",
+      "pattern": "A",
+      "events": 3,
+      "passed": true,
+      "safePauses": 0
+    },
+    {
+      "device": "native touch emulation",
+      "pattern": "B",
+      "events": 3,
+      "passed": true,
+      "safePauses": 0
+    },
+    {
+      "device": "native touch emulation",
+      "pattern": "C",
+      "events": 2,
+      "passed": true,
+      "safePauses": 0
+    },
+    {
+      "device": "native touch emulation",
+      "pattern": "D",
+      "events": 4,
+      "passed": true,
+      "safePauses": 0
+    },
+    {
+      "device": "native touch emulation",
+      "pattern": "E",
+      "events": 3,
+      "passed": true,
+      "safePauses": 0
+    }
+  ],
+  "generation": {
+    "count": 60,
+    "meanMs": 4.408333333341094,
+    "p95Ms": 16.800000000046566,
+    "maxMs": 33.60000000009313
+  }
+}

@@ -2,9 +2,13 @@
 
 2026年10月13日。Node.js / Python / Chromium / Playwrightを使用。ゲーム本体とFirebase未設定時の挙動をローカルで確認し、Firebaseの実ルール・複数ブラウザ共有もGitHub Actionsのローカルエミュレーターで成功を確認しました。プロジェクト `cm-run` の本番用Web設定は反映済みです。本番接続はこの環境の通信制限により未確認です。
 
-## 最新のグラフィック・EDM
+## 最新の難易度・複合障害物
 
-[GRAPHICS_SOUND_REPORT.md](GRAPHICS_SOUND_REPORT.md) に今回の44項目、性能・メモリ・実音声波形・未確認事項をまとめています。既存の物理、生成、ランキングは変更していません。
+[DIFFICULTY_REPORT.md](DIFFICULTY_REPORT.md) に13項目、序盤の修正前との比較、135条件の連続操作、既存機能の回帰結果と未確認事項をまとめます。
+
+## 前回のグラフィック・EDM
+
+[GRAPHICS_SOUND_REPORT.md](GRAPHICS_SOUND_REPORT.md) に前回の44項目、性能・メモリ・実音声波形・未確認事項をまとめています。既存の物理、生成、ランキングは変更していません。
 
 ## 前回のタイトル・説明・音声修正
 
